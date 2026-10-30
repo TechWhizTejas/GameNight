@@ -188,8 +188,9 @@
   .cell.free { background: linear-gradient(160deg, #ff7aa8, var(--accent)); color: #fff; border-color: transparent; cursor: default; }
   .cell.free .t { color: #fff; }
   .cell.free::after { display: none; }
-  .cell.called:not(.marked) { box-shadow: inset 0 0 0 3px var(--accent); }
   .cell.win { background: var(--ok); color: #04221a; }
+  .cell.nope { animation: nope .6s ease; }
+  @keyframes nope { 0%, 100% { transform: none; } 15% { background: var(--bad); color: #fff; transform: translateX(-5px); } 35% { background: var(--bad); color: #fff; transform: translateX(5px); } 55% { background: var(--bad); color: #fff; transform: translateX(-3px); } 75% { background: var(--bad); color: #fff; transform: none; } }
   .card-head.crossed { opacity: .35; position: relative; }
   .card-head.crossed::after { content: ""; position: absolute; left: 12%; right: 12%; top: 50%; height: 4px; margin-top: -2px; border-radius: 4px; background: #1d1338; transform: rotate(-12deg); }
   .level-note { margin: -2px 0 6px; color: var(--muted); font-size: 13px; font-weight: 700; }
@@ -439,11 +440,7 @@
       <div id="pCardWrap"></div>
       <button class="parva-btn" id="pParva" disabled>PARVA!</button>
       <section class="panel">
-        <div class="row" style="border-top:0" id="pAutoRow">
-          <label for="pAuto">Mark my card for me</label>
-          <label class="switch"><input type="checkbox" id="pAuto" checked><span></span></label>
-        </div>
-        <div class="row">
+        <div class="row" style="border-top:0">
           <label for="pVoice">Say each ball out loud</label>
           <label class="switch"><input type="checkbox" id="pVoice"><span></span></label>
         </div>
@@ -537,7 +534,7 @@
   const MODE_NAMES = { easy: "Easy", hard: "Hard", party: "Party pictures" };
   const MODE_NOTES = {
     easy: "Numbers 1–25 anywhere on the card. Every line crosses off a letter of PARVA. Prizes for 1 line, 2 lines and all 5.",
-    hard: "Numbers 1–75, no auto-mark, no list of past balls. Fill the whole card from memory. Cards are checked automatically, and a false claim resets your card.",
+    hard: "Numbers 1–75, no list of past balls. Fill the whole card from memory. Cards are checked automatically.",
     party: "Picture balls in P-A-R-V-A columns. You pick the winning pattern.",
   };
   const modeOf = g => MODES[g.mode] ? g.mode : "party";
@@ -1144,7 +1141,6 @@
     store.set("pb:joined:" + code, P.joinedAt);
     show("viewPlayer");
     loadCard();
-    if ($("pAuto").checked && modeOf(game) !== "hard") markAllCalled();
     renderPlayer();
     P.unsub && P.unsub();
     P.unsub = sync.watch(code, g => {
@@ -1184,14 +1180,9 @@
   function renderPlayer() {
     const g = P.game, mode = modeOf(g), hard = mode === "hard", called = new Set(g.called);
     const isNew = g.called.length > P.lastCalledLen;
-    if (isNew && $("pAuto").checked && !hard) {
-      g.called.slice(P.lastCalledLen).forEach(n => P.cells.forEach((col, c) => col.forEach((v, r) => { if (v === n) P.marked |= 1 << (c * 5 + r); })));
-      saveCard();
-    }
     if (isNew) say(ballText(g.called.at(-1), mode), $("pVoice").checked);
     renderBall("p", g, isNew);
     P.lastCalledLen = g.called.length;
-    $("pAutoRow").hidden = hard;
     // A new prize stage means any earlier claim is finished.
     if (P.claim && P.claimStage !== g.winners.length) P.claim = null;
     handleFalseClaims(g);
@@ -1210,7 +1201,6 @@
       const n = P.cells[c][r], cls = ["cell"];
       if (n === 0) cls.push("free");
       if (isMarked(c, r)) cls.push("marked");
-      if (n && called.has(n) && !hard) cls.push("called");
       if (winSet.has(c + "," + r)) cls.push("win");
       const inner = n === 0 ? `<span class="e">🎂</span><span class="t">FREE</span>`
         : isParty(mode) ? `<span class="e">${itemOf(n).e}</span><span class="t">${itemOf(n).t}</span>` : n;
@@ -1231,9 +1221,16 @@
     playerModal(g);
   }
 
+  // Players mark their own card. A number that hasn't been drawn flashes red and isn't marked;
+  // any number drawn earlier can still be marked later.
   function toggleCell(cell) {
     if (!cell || cell.classList.contains("free")) return;
-    const bit = 1 << (+cell.dataset.c * 5 + +cell.dataset.r);
+    const c = +cell.dataset.c, r = +cell.dataset.r, bit = 1 << (c * 5 + r);
+    if (!(P.marked & bit) && !P.game.called.includes(P.cells[c][r])) {
+      cell.classList.remove("nope"); void cell.offsetWidth; cell.classList.add("nope");
+      toast(`${ballText(P.cells[c][r], modeOf(P.game))} hasn’t been drawn yet`);
+      return;
+    }
     P.marked ^= bit; saveCard(); renderPlayer();
   }
   $("pCardWrap").addEventListener("click", e => toggleCell(e.target.closest(".cell")));
@@ -1246,12 +1243,6 @@
       again && again.focus();
     }
   });
-  function markAllCalled() {
-    const called = new Set(P.game.called);
-    P.cells.forEach((col, c) => col.forEach((v, r) => { if (called.has(v)) P.marked |= 1 << (c * 5 + r); }));
-    saveCard();
-  }
-  $("pAuto").onchange = () => { if ($("pAuto").checked && modeOf(P.game) !== "hard") { markAllCalled(); renderPlayer(); } };
   $("pParva").onclick = () => {
     P.claim = Date.now(); P.claimStage = P.game.winners.length; pushPresence(); renderPlayer();
     if (!room) toast("Shout it out loud so the host hears you!");
