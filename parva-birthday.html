@@ -1,0 +1,758 @@
+<title>Parva's Birthday Bingo</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+  /* Layout: party-night stage. Caller column on the left, cards on the right, stacks on phones. */
+  :root {
+    color-scheme: dark;
+    --bg: #160f2e;
+    --bg-2: #1f1640;
+    --panel: #251b4a;
+    --cell: #2f2459;
+    --line: #3d3170;
+    --ink: #fbf7ff;
+    --muted: #b6abd9;
+    --accent: #ff4f8b;
+    --gold: #ffd166;
+    --mark-ink: #2a1a00;
+    --p: #ff6b6b; --a: #ffb703; --r: #06d6a0; --v: #4cc9f0; --a2: #c77dff;
+    --display: "Lilita One", "Arial Rounded MT Bold", system-ui, sans-serif;
+    --body: Nunito, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --shadow: 0 10px 30px rgba(5, 0, 20, .45);
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { min-height: 100%; }
+  body {
+    background:
+      radial-gradient(1200px 500px at 15% -10%, #3a1f6b 0%, transparent 60%),
+      radial-gradient(900px 400px at 100% 0%, #4a1846 0%, transparent 55%),
+      var(--bg);
+    color: var(--ink);
+    font: 15px/1.45 var(--body);
+  }
+  .wrap { max-width: 1240px; margin: 0 auto; padding-block: 18px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+  header { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-bottom: 18px; }
+  .title { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .cake { font-size: 44px; line-height: 1; filter: drop-shadow(0 4px 10px rgba(255, 79, 139, .4)); }
+  .title h1 { margin: 0; font: 400 clamp(26px, 5vw, 38px)/1.05 var(--display); letter-spacing: .5px; text-wrap: balance; }
+  .title h1 .name { color: var(--gold); }
+  .title p { margin: 2px 0 0; color: var(--muted); font-weight: 700; font-size: 14px; }
+  .tabs { display: flex; background: var(--bg-2); border: 1px solid var(--line); border-radius: 999px; padding: 4px; gap: 4px; }
+  .tabs button { border: 0; background: transparent; color: var(--muted); padding: 8px 14px; border-radius: 999px; font-size: 14px; }
+  .tabs button.active { background: var(--accent); color: #fff; }
+
+  .layout { display: grid; grid-template-columns: 390px minmax(0, 1fr); gap: 20px; align-items: start; }
+  @media (max-width: 920px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+  body.player .caller { display: none; }
+  body.player .layout { grid-template-columns: minmax(0, 1fr); max-width: 560px; margin: 0 auto; }
+  body.player .host-only { display: none !important; }
+  body:not(.player) .player-only { display: none !important; }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 22px; padding: 18px; box-shadow: var(--shadow); }
+  .caller { position: sticky; top: calc(14px + env(safe-area-inset-top, 0px)); }
+  @media (max-width: 920px) { .caller { position: static; } }
+
+  button {
+    font: 800 15px var(--body); border: 1px solid var(--line); background: var(--cell); color: var(--ink);
+    border-radius: 14px; padding: 11px 14px; cursor: pointer; transition: transform .08s, filter .15s, background .15s;
+  }
+  button:hover { filter: brightness(1.12); }
+  button:active { transform: scale(.97); }
+  button:disabled { opacity: .4; cursor: not-allowed; }
+  button:focus-visible, select:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+  button.primary { background: linear-gradient(180deg, #ff6aa0, var(--accent)); color: #fff; border-color: transparent; box-shadow: 0 6px 18px rgba(255, 79, 139, .35); }
+  button.gold { background: var(--gold); color: var(--mark-ink); border-color: transparent; }
+  button.on { background: var(--r); color: #04221a; border-color: transparent; }
+  button.danger { background: #ff6b6b; color: #fff; border-color: transparent; }
+
+  .current { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
+  .ball {
+    width: 118px; height: 118px; border-radius: 50%; flex: none; display: grid; place-items: center;
+    background: radial-gradient(circle at 32% 28%, rgba(255,255,255,.55), transparent 42%), var(--c, #5a4d8c);
+    box-shadow: inset 0 -8px 14px rgba(0,0,0,.25), 0 8px 22px rgba(0,0,0,.35);
+  }
+  .ball .inner { background: #fff; color: #1d1338; width: 78px; height: 78px; border-radius: 50%; display: grid; place-content: center; text-align: center; line-height: 1; }
+  .ball .l { font: 400 16px var(--display); color: #6b5fa0; }
+  .ball .num { font: 400 32px var(--display); }
+  .ball .emo { font-size: 34px; }
+  .ball.pop { animation: pop .5s cubic-bezier(.2, 1.5, .4, 1); }
+  @keyframes pop { from { transform: scale(.4) rotate(-40deg); } to { transform: scale(1) rotate(0); } }
+  .current-info { min-width: 0; }
+  .ball-label { font: 400 22px var(--display); min-height: 28px; }
+  .count { font-size: 13px; color: var(--muted); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .recent { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .mini { min-width: 34px; height: 34px; padding: 0 6px; border-radius: 99px; display: grid; place-items: center; font: 400 13px var(--display); color: #1d1338; background: var(--c); }
+
+  .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .btns .wide { grid-column: 1 / -1; font: 400 21px var(--display); letter-spacing: .5px; padding: 14px; }
+  .progress { height: 5px; background: var(--line); border-radius: 5px; overflow: hidden; margin: 10px 0 4px; visibility: hidden; }
+  .progress.show { visibility: visible; }
+  .progress div { height: 100%; width: 0; background: linear-gradient(90deg, var(--gold), var(--accent)); }
+
+  .settings { margin-top: 8px; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 14px; }
+  .row > label:first-child { color: var(--muted); font-weight: 700; }
+  .row input[type=range] { flex: 1; max-width: 150px; accent-color: var(--accent); }
+  select { font: 700 14px var(--body); padding: 8px 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--cell); color: var(--ink); max-width: 100%; }
+  .switch { position: relative; width: 44px; height: 26px; flex: none; }
+  .switch input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+  .switch span { position: absolute; inset: 0; background: var(--line); border-radius: 99px; pointer-events: none; transition: .2s; }
+  .switch span::after { content: ""; position: absolute; left: 3px; top: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: .2s; }
+  .switch input:checked + span { background: var(--accent); }
+  .switch input:checked + span::after { transform: translateX(18px); }
+  .switch input:focus-visible + span { outline: 3px solid var(--gold); outline-offset: 2px; }
+
+  .board { display: grid; gap: 3px; margin-top: 14px; }
+  .letter { display: grid; place-items: center; font: 400 15px var(--display); color: #1d1338; border-radius: 6px; background: var(--c); }
+  .board-cell { aspect-ratio: 1; max-width: 100%; display: grid; place-items: center; font-size: clamp(8px, 2.4vw, 11px); font-weight: 800; border-radius: 5px; background: var(--cell); color: var(--muted); }
+  .board.party .board-cell { font-size: clamp(14px, 4vw, 20px); filter: grayscale(1); opacity: .35; }
+  .board-cell.hit { background: var(--c); color: #1d1338; filter: none !important; opacity: 1 !important; }
+
+  .section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+  .section-head h2 { margin: 0; font: 400 24px var(--display); }
+  .ctrls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .ctrls button { padding: 8px 12px; font-size: 14px; }
+  .automark { display: flex; align-items: center; gap: 10px; color: var(--muted); font-weight: 700; font-size: 14px; margin-bottom: 12px; }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 22px; padding: 12px; box-shadow: var(--shadow); min-width: 0; }
+  .card.winner { box-shadow: 0 0 0 3px var(--gold), 0 0 34px rgba(255, 209, 102, .35); }
+  .card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+  .card-top input {
+    flex: 1; min-width: 0; font: 800 15px var(--body); color: var(--ink); background: transparent; border: 1px dashed transparent; border-radius: 8px; padding: 4px 6px;
+  }
+  .card-top input:hover { border-color: var(--line); }
+  .card-top input::placeholder { color: var(--muted); }
+  .tag { font: 400 15px var(--display); color: var(--gold); white-space: nowrap; }
+  .card-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; }
+  .card-head { text-align: center; color: #1d1338; font: 400 22px var(--display); border-radius: 9px; padding: 2px 0; background: var(--c); }
+  .cell {
+    aspect-ratio: 1; max-width: 100%; border-radius: 12px; display: grid; place-items: center; align-content: center; text-align: center;
+    font: 400 21px var(--display); background: var(--cell); border: 1px solid var(--line); cursor: pointer; user-select: none; position: relative;
+    transition: background .15s, transform .08s; padding: 2px; overflow: hidden;
+  }
+  .cell .e { font-size: clamp(20px, 6vw, 26px); line-height: 1.1; }
+  .cell .t { font: 800 9px/1.1 var(--body); color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cell:active { transform: scale(.93); }
+  .cell.marked { background: var(--gold); color: var(--mark-ink); border-color: transparent; }
+  .cell.marked .t { color: #6b4a00; }
+  .cell.marked::after { content: ""; position: absolute; inset: 14%; border-radius: 50%; border: 3px solid rgba(255, 79, 139, .55); }
+  .cell.free { background: linear-gradient(160deg, #ff7aa8, var(--accent)); color: #fff; border-color: transparent; cursor: default; }
+  .cell.free .t { color: #fff; }
+  .cell.free::after { display: none; }
+  .cell.called:not(.marked) { box-shadow: inset 0 0 0 2px var(--accent); }
+  .cell.win { background: var(--r); color: #04221a; }
+  .cell.win .t { color: #04221a; }
+  .hint { font-size: 13px; color: var(--muted); margin: 12px 0 0; }
+
+  /* party picker + win popups */
+  .overlay { position: fixed; inset: 0; background: rgba(10, 4, 28, .72); display: grid; place-items: center; z-index: 20; padding: 16px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .modal { width: min(460px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: 26px; padding: 22px; text-align: center; box-shadow: var(--shadow); animation: rise .35s cubic-bezier(.2, 1.4, .4, 1); }
+  @keyframes rise { from { transform: translateY(30px) scale(.95); opacity: .3; } to { transform: none; opacity: 1; } }
+  .modal .kicker { font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--gold); font-size: 12px; }
+  .modal h3 { margin: 6px 0 4px; font: 400 clamp(32px, 9vw, 48px)/1.05 var(--display); }
+  .modal h3.big { color: var(--gold); letter-spacing: 2px; }
+  .reel { margin: 14px 0 18px; padding: 18px 14px; min-height: 120px; display: grid; place-items: center; background: var(--bg-2); border-radius: 18px; border: 1px dashed var(--line); font: 800 19px/1.35 var(--body); text-wrap: balance; }
+  .reel.spinning { color: var(--muted); }
+  .modal .who { color: var(--muted); font-weight: 700; margin: 0; }
+  .modal .actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%) translateY(160%); transition: transform .35s cubic-bezier(.2, 1.4, .4, 1);
+    background: var(--ink); color: var(--bg); padding: 12px 20px; border-radius: 14px; font: 800 16px var(--body); z-index: 30; max-width: calc(100% - 32px); text-align: center;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  #confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 40; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="title">
+      <div class="cake" aria-hidden="true">🎂</div>
+      <div>
+        <h1>Happy Birthday, <span class="name">Parva!</span></h1>
+        <p>Birthday Bingo · get a line and shout “PARVA!”</p>
+      </div>
+    </div>
+    <div class="tabs" role="tablist" aria-label="Screen">
+      <button id="tabHost" class="active" role="tab">🎤 Host screen</button>
+      <button id="tabPlayer" role="tab">🃏 Just my card</button>
+    </div>
+  </header>
+
+  <div class="layout">
+    <section class="panel caller" aria-label="Ball caller">
+      <div class="current">
+        <div class="ball" id="ball"><div class="inner" id="ballInner"><span class="emo">🎈</span></div></div>
+        <div class="current-info">
+          <div class="ball-label" id="ballLabel">Ready to party</div>
+          <div class="count"><span id="called">0</span> of <span id="total">45</span> called</div>
+          <div class="recent" id="recent"></div>
+        </div>
+      </div>
+
+      <div class="btns">
+        <button class="primary wide" id="draw">Pick a ball</button>
+        <button id="auto">▶ Auto pick</button>
+        <button id="undo">↶ Undo</button>
+        <button class="gold" id="challengeBtn">🎁 Party challenge</button>
+        <button id="newGame">🔄 New round</button>
+      </div>
+      <div class="progress" id="progress"><div></div></div>
+
+      <div class="settings">
+        <div class="row">
+          <label for="mode">Ball type</label>
+          <select id="mode">
+            <option value="party">🎉 Party pictures (45)</option>
+            <option value="numbers">🔢 Numbers (75)</option>
+          </select>
+        </div>
+        <div class="row">
+          <label for="speed">Auto pick every <b id="speedVal">6</b>s</label>
+          <input type="range" id="speed" min="2" max="20" value="6">
+        </div>
+        <div class="row">
+          <label for="challengeEvery">Party challenge every</label>
+          <select id="challengeEvery">
+            <option value="0">Off</option>
+            <option value="5">5 picks</option>
+            <option value="8" selected>8 picks</option>
+            <option value="10">10 picks</option>
+            <option value="15">15 picks</option>
+          </select>
+        </div>
+        <div class="row">
+          <label for="stopAt">Auto stops after</label>
+          <select id="stopAt">
+            <option value="0">Never (until a win)</option>
+            <option value="10">10 picks</option>
+            <option value="20">20 picks</option>
+            <option value="30">30 picks</option>
+          </select>
+        </div>
+        <div class="row">
+          <label for="voice">Say each pick out loud</label>
+          <label class="switch"><input type="checkbox" id="voice" checked><span></span></label>
+        </div>
+        <div class="row">
+          <label for="sound">Birthday song on a win</label>
+          <label class="switch"><input type="checkbox" id="sound" checked><span></span></label>
+        </div>
+      </div>
+
+      <div class="board party" id="board"></div>
+    </section>
+
+    <section aria-label="Bingo cards">
+      <div class="section-head">
+        <h2><span class="host-only">Player cards</span><span class="player-only">My card</span></h2>
+        <div class="ctrls">
+          <select id="numCards" class="host-only" aria-label="Number of cards">
+            <option value="1">1 card</option>
+            <option value="2">2 cards</option>
+            <option value="3">3 cards</option>
+            <option value="4" selected>4 cards</option>
+            <option value="6">6 cards</option>
+            <option value="8">8 cards</option>
+          </select>
+          <select id="pattern" aria-label="How to win">
+            <option value="line">Win: any line</option>
+            <option value="corners">Win: four corners</option>
+            <option value="x">Win: big X</option>
+            <option value="frame">Win: picture frame</option>
+            <option value="blackout">Win: full card</option>
+          </select>
+          <button id="newCards">🎲 New cards</button>
+          <button id="playerChallenge" class="gold player-only">🎁 Challenge</button>
+        </div>
+      </div>
+      <div class="automark host-only">
+        <label class="switch"><input type="checkbox" id="autoMark" checked><span></span></label>
+        <label for="autoMark">Mark picked balls on the cards for us</label>
+      </div>
+      <div class="cards" id="cards"></div>
+      <p class="hint host-only">Type a friend’s name at the top of each card. Tap a square to mark or unmark it. A pink ring means that ball was picked but the square isn’t marked yet.</p>
+      <p class="hint player-only">Listen to the host and tap squares as they get picked. Get the winning pattern and shout “PARVA!”</p>
+    </section>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+    <div class="kicker" id="mKicker">Party challenge</div>
+    <h3 id="mTitle">🎁</h3>
+    <p class="who" id="mWho"></p>
+    <div class="reel" id="mReel"></div>
+    <div class="actions">
+      <button id="mAgain">🔀 Pick another</button>
+      <button class="primary" id="mClose">Keep playing</button>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<canvas id="confetti" aria-hidden="true"></canvas>
+
+<script>
+(() => {
+  const LETTERS = ["P", "A", "R", "V", "A"];
+  const COLORS = ["var(--p)", "var(--a)", "var(--r)", "var(--v)", "var(--a2)"];
+
+  // 9 party pictures per column, 45 in all
+  const PARTY = [
+    ["🎈 Balloons", "🎉 Popper", "🎊 Confetti", "🥳 Party hat", "🪅 Piñata", "🎁 Present", "🎀 Bow", "🕯️ Candle", "🎂 Cake"],
+    ["🍕 Pizza", "🧁 Cupcake", "🍦 Ice cream", "🍫 Chocolate", "🍩 Donut", "🥤 Soda", "🍿 Popcorn", "🍬 Candy", "🍟 Fries"],
+    ["🎮 Gaming", "🎲 Dice", "🃏 Cards", "🎤 Karaoke", "🎧 Music", "💃 Dance", "📸 Photo", "🎳 Bowling", "🎯 Darts"],
+    ["⭐ Wish", "🍀 Luck", "💖 Love", "👑 Crown", "🏆 Trophy", "🌈 Rainbow", "🦄 Unicorn", "💫 Sparkle", "🤝 Friends"],
+    ["🌙 Late night", "🎆 Fireworks", "🪩 Disco", "🚗 Road trip", "🏖️ Beach", "🎬 Movie", "☕ Coffee", "🤳 Selfie", "😂 LOL"],
+  ].map(col => col.map(s => { const i = s.indexOf(" "); return { e: s.slice(0, i), t: s.slice(i + 1) }; }));
+
+  const CHALLENGES = [
+    "Tell everyone your favourite memory with Parva.",
+    "Sing Happy Birthday to Parva in your best opera voice.",
+    "Give Parva a 10-second compliment with no pauses.",
+    "Do your best Parva impression. Parva scores it out of 10.",
+    "Guess Parva’s age in dog years. Closest guess gets a cheer.",
+    "Share one wish for Parva’s year ahead.",
+    "Describe Parva using only three emojis.",
+    "Tell the story of how you met Parva in 30 seconds.",
+    "Parva picks someone to do a 10-second dance.",
+    "Name Parva’s favourite food. Wrong answer means 5 jumping jacks.",
+    "Raise your drink and give Parva a one-line toast.",
+    "Take a group selfie with Parva in the middle.",
+    "Hum a song. The first person to guess it picks the next challenge.",
+    "Invent Parva’s superhero name. Parva picks the best one.",
+    "Parva asks you any question, and you answer honestly.",
+    "Predict what Parva will be doing in 10 years.",
+    "Say Happy Birthday to Parva in a language other than English.",
+    "Talk like a robot until the next ball is picked.",
+    "Share a funny Parva moment you saw happen. Keep it friendly!",
+    "Parva chooses: you sing or you dance for 15 seconds.",
+    "Give Parva a made-up award, like “Best Snack Finder”.",
+    "Everyone sings the first line of Happy Birthday together. Loud!",
+    "Lucky you: mark any one square on your card for free.",
+    "Swap seats with the person on your left.",
+    "Name three things Parva is great at in 10 seconds.",
+    "Act out Parva’s morning routine. No words allowed.",
+  ];
+  const PRIZES = [
+    "Winner gets the first slice of cake 🎂",
+    "Winner picks the next song 🎧",
+    "Winner gives Parva a birthday dare 😈",
+    "Winner is the DJ for the next 10 minutes 🪩",
+    "Winner skips the next party challenge 🛡️",
+    "Winner gets a huge group cheer. Everyone, go! 📣",
+    "Winner chooses the next game 🎲",
+    "Winner picks any snack first 🍫",
+    "Winner chooses who does the next challenge 👉",
+    "Winner and Parva take a victory selfie 🤳",
+  ];
+
+  const $ = id => document.getElementById(id);
+  let mode = "party", COL = 9;
+  let pool = [], called = [], cards = [], timer = null, tick = null, autoStart = 0, wonCards = new Set();
+  let resumeAuto = false;
+
+  const colOf = n => Math.floor((n - 1) / COL);
+  const itemOf = n => mode === "party" ? PARTY[colOf(n)][(n - 1) % COL] : null;
+  const labelOf = n => mode === "party" ? `${itemOf(n).e} ${itemOf(n).t}` : `${LETTERS[colOf(n)]} ${n}`;
+  const shuffle = a => {
+    for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+    return a;
+  };
+  const pickFrom = (list, not) => { let x; do { x = list[Math.floor(Math.random() * list.length)]; } while (list.length > 1 && x === not); return x; };
+  const esc = s => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const isPlayer = () => document.body.classList.contains("player");
+
+  function makeCard(name = "") {
+    // cells[col][row]; column c holds numbers from c*COL+1 .. c*COL+COL
+    const cells = LETTERS.map((_, c) => shuffle(Array.from({ length: COL }, (_, k) => c * COL + k + 1)).slice(0, 5));
+    cells[2][2] = 0; // free square
+    return { name, cells, marked: cells.map(col => col.map(n => n === 0)) };
+  }
+
+  // ---------- caller ----------
+  function buildBoard() {
+    const b = $("board");
+    b.className = "board" + (mode === "party" ? " party" : "");
+    b.style.gridTemplateColumns = `22px repeat(${COL}, minmax(0, 1fr))`;
+    let html = "";
+    LETTERS.forEach((L, c) => {
+      html += `<div class="letter" style="--c:${COLORS[c]}">${L}</div>`;
+      for (let k = 1; k <= COL; k++) {
+        const n = c * COL + k;
+        html += `<div class="board-cell" id="bc${n}" style="--c:${COLORS[c]}" title="${esc(labelOf(n))}">${mode === "party" ? itemOf(n).e : n}</div>`;
+      }
+    });
+    b.innerHTML = html;
+    $("total").textContent = COL * 5;
+  }
+
+  function renderCaller(animate) {
+    const last = called[called.length - 1];
+    const ball = $("ball");
+    if (last) {
+      ball.style.setProperty("--c", COLORS[colOf(last)]);
+      $("ballInner").innerHTML = mode === "party"
+        ? `<span class="emo">${itemOf(last).e}</span>`
+        : `<span class="l">${LETTERS[colOf(last)]}</span><span class="num">${last}</span>`;
+      $("ballLabel").textContent = mode === "party" ? itemOf(last).t : `${LETTERS[colOf(last)]} – ${last}`;
+    } else {
+      ball.style.removeProperty("--c");
+      $("ballInner").innerHTML = `<span class="emo">🎈</span>`;
+      $("ballLabel").textContent = "Ready to party";
+    }
+    if (animate) { ball.classList.remove("pop"); void ball.offsetWidth; ball.classList.add("pop"); }
+    $("called").textContent = called.length;
+    $("recent").innerHTML = called.slice(-6, -1).reverse().map(n =>
+      `<div class="mini" style="--c:${COLORS[colOf(n)]}" title="${esc(labelOf(n))}">${mode === "party" ? itemOf(n).e : LETTERS[colOf(n)] + n}</div>`).join("");
+    document.querySelectorAll(".board-cell.hit").forEach(el => el.classList.remove("hit"));
+    called.forEach(n => $("bc" + n).classList.add("hit"));
+    $("draw").disabled = pool.length === 0;
+    $("undo").disabled = called.length === 0;
+  }
+
+  function say(text) {
+    if (!$("voice").checked || !("speechSynthesis" in window)) return;
+    try {
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.rate = 0.95; u.pitch = 1.1;
+      speechSynthesis.speak(u);
+    } catch (e) {}
+  }
+
+  function draw() {
+    if (!pool.length) { stopAuto(); toast("Every ball has been picked!"); return; }
+    const n = pool.pop();
+    called.push(n);
+    say(mode === "party" ? itemOf(n).t : `${LETTERS[colOf(n)]}, ${n}`);
+    if ($("autoMark").checked) markEverywhere(n);
+    renderCaller(true);
+    renderCards();
+    if (checkWins()) return;
+    const every = +$("challengeEvery").value;
+    if (every && called.length % every === 0) {
+      resumeAuto = !!timer;
+      stopAuto();
+      setTimeout(() => openChallenge(`Pick #${called.length}! Challenge time`), 900);
+      return;
+    }
+    const limit = +$("stopAt").value;
+    if (timer && limit && called.length >= limit) { stopAuto(); toast(`Auto pick paused after ${limit} picks`); }
+  }
+
+  function undo() {
+    const n = called.pop();
+    if (!n) return;
+    pool.push(n);
+    cards.forEach(card => card.cells.forEach((col, c) => col.forEach((v, r) => { if (v === n) card.marked[c][r] = false; })));
+    syncWinners();
+    renderCaller(false); renderCards();
+  }
+
+  function startAuto(immediate = true) {
+    if (!pool.length) return;
+    $("auto").textContent = "⏸ Pause"; $("auto").classList.add("on");
+    $("progress").classList.add("show");
+    const ms = +$("speed").value * 1000;
+    autoStart = Date.now();
+    timer = setInterval(() => { autoStart = Date.now(); draw(); }, ms);
+    tick = setInterval(() => {
+      $("progress").firstElementChild.style.width = Math.min(100, (Date.now() - autoStart) / ms * 100) + "%";
+    }, 50);
+    if (immediate) draw();
+  }
+
+  function stopAuto() {
+    clearInterval(timer); clearInterval(tick); timer = tick = null;
+    $("auto").textContent = "▶ Auto pick"; $("auto").classList.remove("on");
+    $("progress").classList.remove("show");
+    $("progress").firstElementChild.style.width = "0";
+  }
+
+  // ---------- cards ----------
+  function markEverywhere(n) {
+    cards.forEach(card => card.cells.forEach((col, c) => col.forEach((v, r) => { if (v === n) card.marked[c][r] = true; })));
+  }
+
+  const ALL = [0, 1, 2, 3, 4];
+  const PATTERNS = {
+    line: () => [
+      ...ALL.map(i => ALL.map(r => [i, r])),
+      ...ALL.map(i => ALL.map(c => [c, i])),
+      ALL.map(i => [i, i]),
+      ALL.map(i => [i, 4 - i]),
+    ],
+    corners: () => [[[0, 0], [4, 0], [0, 4], [4, 4]]],
+    x: () => [ALL.flatMap(i => i === 2 ? [[2, 2]] : [[i, i], [i, 4 - i]])],
+    frame: () => [ALL.flatMap(c => ALL.filter(r => c % 4 === 0 || r % 4 === 0).map(r => [c, r]))],
+    blackout: () => [ALL.flatMap(c => ALL.map(r => [c, r]))],
+  };
+
+  // Winning squares for a card, or null. On the host screen a square only counts if its ball was picked.
+  function winCells(card) {
+    const ok = (c, r) => card.marked[c][r] && (isPlayer() || card.cells[c][r] === 0 || called.includes(card.cells[c][r]));
+    for (const shape of PATTERNS[$("pattern").value]()) if (shape.every(([c, r]) => ok(c, r))) return shape;
+    return null;
+  }
+
+  const cardName = (card, i) => card.name.trim() || `Card ${i + 1}`;
+
+  function renderCards() {
+    const focused = document.activeElement && document.activeElement.dataset.name;
+    $("cards").innerHTML = cards.map((card, idx) => {
+      const win = winCells(card);
+      const winSet = new Set((win || []).map(([c, r]) => c + "," + r));
+      let html = `<div class="card${win ? " winner" : ""}"><div class="card-top">
+        <input id="name${idx}" data-name="${idx}" value="${esc(card.name)}" placeholder="✏️ ${isPlayer() ? "Your name" : "Friend’s name"}" aria-label="Name for card ${idx + 1}" maxlength="24">
+        ${win ? '<span class="tag">PARVA! 🎉</span>' : ""}</div><div class="card-grid">`;
+      LETTERS.forEach((L, c) => html += `<div class="card-head" style="--c:${COLORS[c]}">${L}</div>`);
+      for (let r = 0; r < 5; r++) for (let c = 0; c < 5; c++) {
+        const n = card.cells[c][r];
+        const cls = ["cell"];
+        if (n === 0) cls.push("free");
+        if (card.marked[c][r]) cls.push("marked");
+        if (n && called.includes(n) && !isPlayer()) cls.push("called");
+        if (winSet.has(c + "," + r)) cls.push("win");
+        let inner;
+        if (n === 0) inner = `<span class="e">🎂</span><span class="t">FREE</span>`;
+        else if (mode === "party") inner = `<span class="e">${itemOf(n).e}</span><span class="t">${itemOf(n).t}</span>`;
+        else inner = n;
+        html += `<div class="${cls.join(" ")}" data-card="${idx}" data-c="${c}" data-r="${r}" role="button" tabindex="0" aria-pressed="${card.marked[c][r]}" aria-label="${n ? esc(labelOf(n)) : "Free square"}">${inner}</div>`;
+      }
+      return html + "</div></div>";
+    }).join("");
+    if (focused) { const el = $("name" + focused); if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }
+  }
+
+  function syncWinners() {
+    wonCards = new Set(cards.filter(c => winCells(c)));
+  }
+
+  // Announces any card that just won. Returns true if someone won.
+  function checkWins() {
+    const fresh = cards.map((c, i) => [c, i]).filter(([c]) => winCells(c) && !wonCards.has(c));
+    fresh.forEach(([c]) => wonCards.add(c));
+    if (!fresh.length) return false;
+    stopAuto(); resumeAuto = false;
+    const names = fresh.map(([c, i]) => cardName(c, i));
+    celebrate();
+    say(`Parva! ${names.join(" and ")} wins!`);
+    openWin(names);
+    return true;
+  }
+
+  function toggleCell(cell) {
+    if (!cell || cell.classList.contains("free")) return;
+    const card = cards[+cell.dataset.card], c = +cell.dataset.c, r = +cell.dataset.r;
+    card.marked[c][r] = !card.marked[c][r];
+    if (!winCells(card)) wonCards.delete(card);
+    renderCards();
+    checkWins();
+  }
+  $("cards").addEventListener("click", e => toggleCell(e.target.closest(".cell")));
+  $("cards").addEventListener("keydown", e => {
+    if ((e.key === "Enter" || e.key === " ") && e.target.classList.contains("cell")) {
+      e.preventDefault();
+      const key = [e.target.dataset.card, e.target.dataset.c, e.target.dataset.r];
+      toggleCell(e.target);
+      const again = document.querySelector(`.cell[data-card="${key[0]}"][data-c="${key[1]}"][data-r="${key[2]}"]`);
+      if (again) again.focus();
+    }
+  });
+  $("cards").addEventListener("input", e => {
+    if (e.target.dataset.name !== undefined) cards[+e.target.dataset.name].name = e.target.value;
+  });
+
+  function newCards() {
+    const count = isPlayer() ? 1 : +$("numCards").value;
+    cards = Array.from({ length: count }, (_, i) => makeCard(cards[i] ? cards[i].name : ""));
+    if ($("autoMark").checked && !isPlayer()) called.forEach(markEverywhere);
+    syncWinners();
+    renderCards();
+  }
+
+  function newGame() {
+    stopAuto();
+    pool = shuffle(Array.from({ length: COL * 5 }, (_, i) => i + 1));
+    called = [];
+    cards.forEach(card => { card.marked = card.cells.map(col => col.map(n => n === 0)); });
+    wonCards.clear();
+    renderCaller(false); renderCards();
+  }
+
+  function setMode(m) {
+    mode = m; COL = m === "party" ? 9 : 15;
+    buildBoard();
+    called = [];
+    newCards();
+    newGame();
+  }
+
+  // ---------- popups ----------
+  let popupKind = "challenge", lastPick = "";
+  function spin(list, done) {
+    const reel = $("mReel");
+    reel.classList.add("spinning");
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let i = 0, steps = reduce ? 1 : 14;
+    const step = () => {
+      const pick = pickFrom(list, lastPick);
+      reel.textContent = pick;
+      if (++i < steps) setTimeout(step, 40 + i * 12);
+      else { lastPick = pick; reel.classList.remove("spinning"); done && done(pick); }
+    };
+    step();
+  }
+
+  function openChallenge(kicker = "Party challenge") {
+    popupKind = "challenge";
+    $("mKicker").textContent = kicker;
+    $("mTitle").textContent = "🎁 Challenge!";
+    $("mTitle").className = "";
+    $("mWho").textContent = "Whoever is closest to Parva goes first. Then pass it on!";
+    $("mAgain").textContent = "🔀 Pick another";
+    $("mClose").textContent = resumeAuto ? "Done! Keep picking" : "Done!";
+    $("overlay").hidden = false;
+    spin(CHALLENGES, pick => say(pick));
+    $("mClose").focus();
+  }
+
+  function openWin(names) {
+    popupKind = "win";
+    $("mKicker").textContent = "We have a winner";
+    $("mTitle").textContent = "PARVA! 🎉";
+    $("mTitle").className = "big";
+    $("mWho").textContent = `${names.join(" & ")} got it after ${called.length || "a few"} picks!`;
+    $("mAgain").textContent = "🔀 Different prize";
+    $("mClose").textContent = "Keep playing";
+    $("overlay").hidden = false;
+    spin(PRIZES);
+    playSong();
+    $("mClose").focus();
+  }
+
+  $("mAgain").onclick = () => spin(popupKind === "win" ? PRIZES : CHALLENGES, pick => popupKind === "challenge" && say(pick));
+  $("mClose").onclick = () => {
+    $("overlay").hidden = true;
+    if (resumeAuto) { resumeAuto = false; startAuto(false); }
+  };
+  $("overlay").addEventListener("click", e => { if (e.target === $("overlay")) $("mClose").click(); });
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("overlay").hidden) $("mClose").click(); });
+
+  // ---------- birthday song + confetti ----------
+  let audio;
+  function playSong() {
+    if (!$("sound").checked) return;
+    try {
+      audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+      const G4 = 392, A4 = 440, B4 = 494, C5 = 523, D5 = 587;
+      const tune = [[G4, .3], [G4, .15], [A4, .45], [G4, .45], [C5, .45], [B4, .8], [G4, .3], [G4, .15], [A4, .45], [G4, .45], [D5, .45], [C5, .9]];
+      let t = audio.currentTime + 0.6;
+      tune.forEach(([f, d]) => {
+        const o = audio.createOscillator(), g = audio.createGain();
+        o.type = "triangle"; o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.25, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + d * 0.95);
+        o.connect(g).connect(audio.destination);
+        o.start(t); o.stop(t + d);
+        t += d;
+      });
+    } catch (e) {}
+  }
+
+  const canvas = $("confetti"), ctx = canvas.getContext("2d");
+  let bits = [], raf = 0;
+  function celebrate() {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = innerWidth * dpr; canvas.height = innerHeight * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const cols = ["#ff6b6b", "#ffb703", "#06d6a0", "#4cc9f0", "#c77dff", "#ff4f8b", "#ffd166"];
+    for (let i = 0; i < 220; i++) {
+      const fromLeft = i % 2 === 0;
+      bits.push({
+        x: fromLeft ? 0 : innerWidth, y: innerHeight * 0.75,
+        vx: (fromLeft ? 1 : -1) * (4 + Math.random() * 9), vy: -(9 + Math.random() * 11),
+        w: 6 + Math.random() * 6, h: 8 + Math.random() * 8, a: Math.random() * 6, va: (Math.random() - .5) * .4,
+        c: cols[i % cols.length], life: 0,
+      });
+    }
+    if (!raf) raf = requestAnimationFrame(frame);
+  }
+  function frame() {
+    ctx.clearRect(0, 0, innerWidth, innerHeight);
+    bits = bits.filter(b => b.y < innerHeight + 40 && b.life < 400);
+    bits.forEach(b => {
+      b.vy += 0.28; b.vx *= 0.99; b.x += b.vx; b.y += b.vy; b.a += b.va; b.life++;
+      ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.a);
+      ctx.fillStyle = b.c; ctx.fillRect(-b.w / 2, -b.h / 2, b.w, b.h * Math.abs(Math.cos(b.a * 2)));
+      ctx.restore();
+    });
+    raf = bits.length ? requestAnimationFrame(frame) : 0;
+    if (!raf) ctx.clearRect(0, 0, innerWidth, innerHeight);
+  }
+
+  // ---------- misc ----------
+  let toastT;
+  function toast(msg) {
+    const t = $("toast");
+    t.textContent = msg; t.classList.add("show");
+    clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 3200);
+  }
+
+  // Two-tap confirm, since the page can't show browser dialogs
+  let armed = 0;
+  $("newGame").onclick = () => {
+    if (!called.length || Date.now() - armed < 3000) {
+      armed = 0; newGame(); $("newGame").textContent = "🔄 New round"; $("newGame").classList.remove("danger");
+      toast("New round! Same cards, all squares cleared.");
+      return;
+    }
+    armed = Date.now();
+    $("newGame").textContent = "Tap again to reset"; $("newGame").classList.add("danger");
+    setTimeout(() => { if (armed && Date.now() - armed >= 2900) { armed = 0; $("newGame").textContent = "🔄 New round"; $("newGame").classList.remove("danger"); } }, 3000);
+  };
+
+  function setScreen(player) {
+    document.body.classList.toggle("player", player);
+    $("tabHost").classList.toggle("active", !player);
+    $("tabPlayer").classList.toggle("active", player);
+    $("tabHost").setAttribute("aria-selected", !player);
+    $("tabPlayer").setAttribute("aria-selected", player);
+    stopAuto();
+    if (player) { called = []; cards.forEach(card => { card.marked = card.cells.map(col => col.map(n => n === 0)); }); }
+    newGame();
+    newCards();
+  }
+
+  $("draw").onclick = () => { if (timer) stopAuto(); draw(); };
+  $("auto").onclick = () => timer ? stopAuto() : startAuto();
+  $("undo").onclick = () => { stopAuto(); undo(); };
+  $("challengeBtn").onclick = $("playerChallenge").onclick = () => { resumeAuto = !!timer; stopAuto(); openChallenge(); };
+  $("newCards").onclick = newCards;
+  $("numCards").onchange = newCards;
+  $("mode").onchange = () => setMode($("mode").value);
+  $("pattern").onchange = () => { syncWinners(); renderCards(); };
+  $("autoMark").onchange = () => { if ($("autoMark").checked) { called.forEach(markEverywhere); renderCards(); checkWins(); } };
+  $("speed").oninput = () => { $("speedVal").textContent = $("speed").value; if (timer) { stopAuto(); startAuto(false); } };
+  $("tabHost").onclick = () => setScreen(false);
+  $("tabPlayer").onclick = () => setScreen(true);
+  document.addEventListener("keydown", e => {
+    if (e.code === "Space" && !isPlayer() && $("overlay").hidden && !["SELECT", "INPUT", "BUTTON", "TEXTAREA"].includes(document.activeElement.tagName) && !document.activeElement.classList.contains("cell")) {
+      e.preventDefault(); $("draw").click();
+    }
+  });
+
+  setMode("party");
+})();
+</script>
