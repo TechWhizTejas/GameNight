@@ -202,6 +202,36 @@
   .modal .who { color: var(--muted); font-weight: 700; margin: 0; }
   .modal .actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
 
+  /* quiz + scoreboard */
+  .quiz-overlay { z-index: 25; }
+  .modal.quiz { width: min(560px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; }
+  .quiz-q { font: 400 clamp(22px, 5.5vw, 30px)/1.2 var(--display); margin: 8px 0 14px; text-wrap: balance; }
+  .qtimer { height: 8px; border-radius: 8px; background: var(--bg-2); overflow: hidden; }
+  .qtimer div { height: 100%; width: 100%; background: linear-gradient(90deg, var(--gold), var(--accent)); transition: width .2s linear; }
+  .qsecs { font: 400 20px var(--display); color: var(--gold); margin: 6px 0 12px; font-variant-numeric: tabular-nums; }
+  .answers { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 420px) { .answers { grid-template-columns: 1fr; } }
+  .ans { display: flex; align-items: center; gap: 10px; text-align: left; min-height: 64px; padding: 12px 14px; border: 0; border-radius: 14px; color: #fff; font: 800 16px/1.25 var(--body); }
+  .ans .sh { font-size: 22px; flex: none; width: 26px; text-align: center; }
+  .ans.a0 { background: #e0314b; } .ans.a1 { background: #2d6fd6; } .ans.a2 { background: #c98f00; } .ans.a3 { background: #2f8f1f; }
+  .ans.picked { box-shadow: 0 0 0 4px #fff inset; }
+  .ans.dim { opacity: .3; }
+  .ans.correct { box-shadow: 0 0 0 4px var(--gold); }
+  div.ans { cursor: default; }
+  .result-big { font: 400 clamp(28px, 7vw, 40px)/1.1 var(--display); margin: 16px 0 4px; }
+  .result-big.good { color: var(--ok); } .result-big.bad { color: var(--bad); }
+  .scores { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 6px; text-align: left; }
+  .scores li { display: flex; align-items: center; gap: 10px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px; padding: 9px 12px; font-weight: 800; }
+  .scores li .rk { font: 400 18px var(--display); width: 30px; color: var(--muted); }
+  .scores li:nth-child(1) .rk { color: var(--gold); }
+  .scores li .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .scores li .pts { font-variant-numeric: tabular-nums; }
+  .scores li .gain { color: var(--ok); font-size: 13px; }
+  .scores li.me { border-color: var(--gold); background: rgba(255, 209, 102, .12); }
+  .my-score { color: var(--gold) !important; font-weight: 800; }
+  textarea { font: 700 14px/1.4 var(--body); color: var(--ink); background: var(--bg-2); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; width: 100%; resize: vertical; }
+  textarea::placeholder { color: var(--muted); }
+
   .toast {
     position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%) translateY(160%); transition: transform .35s cubic-bezier(.2, 1.4, .4, 1);
     background: var(--ink); color: var(--bg); padding: 12px 20px; border-radius: 14px; font: 800 16px var(--body); z-index: 30; max-width: calc(100% - 32px); text-align: center; pointer-events: none;
@@ -275,15 +305,28 @@
             <option value="60">60 seconds</option>
           </select>
         </div>
-        <div class="row" style="margin-bottom:14px">
+        <div class="row">
+          <label for="setQuiz">🧠 Quiz question every</label>
+          <select id="setQuiz">
+            <option value="0">Off</option>
+            <option value="5" selected>5 balls</option>
+            <option value="10">10 balls</option>
+          </select>
+        </div>
+        <div class="row">
           <label for="setChallenge">Party challenge every</label>
           <select id="setChallenge">
-            <option value="0">Off</option>
+            <option value="0" selected>Off</option>
             <option value="5">5 balls</option>
-            <option value="8" selected>8 balls</option>
+            <option value="8">8 balls</option>
             <option value="10">10 balls</option>
             <option value="15">15 balls</option>
           </select>
+        </div>
+        <div class="field" style="margin:12px 0 14px">
+          <label for="setQuestions">Your own quiz questions (optional)</label>
+          <textarea id="setQuestions" rows="4" placeholder="One per line: question | right answer | wrong | wrong | wrong&#10;What is Parva’s favourite food? | Pizza | Pasta | Biryani | Burgers"></textarea>
+          <span class="note" style="margin:0">Asked first, before the built-in trivia. A scoreboard pops up every 10 balls.</span>
         </div>
         <button class="primary big" id="createBtn">Create game</button>
         <p class="err" id="hostErr"></p>
@@ -369,6 +412,14 @@
               </select>
             </div>
             <div class="row">
+              <label for="hQuizEvery">🧠 Quiz question every</label>
+              <select id="hQuizEvery">
+                <option value="0">Off</option>
+                <option value="5">5 balls</option>
+                <option value="10">10 balls</option>
+              </select>
+            </div>
+            <div class="row">
               <label for="hChallengeEvery">Party challenge every</label>
               <select id="hChallengeEvery">
                 <option value="0">Off</option>
@@ -389,6 +440,11 @@
 
       <div class="stack">
         <section class="panel" id="hClaims" hidden></section>
+        <section class="panel">
+          <h2>🏆 Scoreboard</h2>
+          <p class="sub">Quiz points (faster = more) plus bingo prizes: 1 line +500, 2 lines +1,000, full win +2,000.</p>
+          <div id="hScores"></div>
+        </section>
         <section class="panel">
           <h2>Players</h2>
           <p class="sub" id="hPlayersSub">Waiting for friends to join with the code.</p>
@@ -418,6 +474,7 @@
             <div class="countdown paused" id="pCountdown">The host hasn’t started yet</div>
             <div class="count">Balls picked: <span id="pCalled">0</span></div>
             <div class="count" id="pStage"></div>
+            <div class="count my-score" id="pScore"></div>
             <div class="recent" id="pRecent"></div>
           </div>
         </div>
@@ -446,6 +503,9 @@
   </main>
 </div>
 
+<div class="overlay quiz-overlay" id="qOverlay" hidden>
+  <div class="modal quiz" role="dialog" aria-modal="true" aria-live="polite" id="qBox"></div>
+</div>
 <div class="overlay" id="overlay" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">
     <div class="kicker" id="mKicker"></div>
@@ -497,6 +557,57 @@
     "Name three things Parva is great at in 10 seconds.",
     "Act out Parva’s morning routine. No words allowed.",
   ];
+  // Built-in quiz: [question, right answer, wrong, wrong, wrong]
+  const QUESTIONS = [
+    ["Which planet is known as the Red Planet?", "Mars", "Venus", "Jupiter", "Mercury"],
+    ["How many sides does a hexagon have?", "6", "5", "7", "8"],
+    ["What is the largest ocean on Earth?", "Pacific", "Atlantic", "Indian", "Arctic"],
+    ["Which country gave the world pizza?", "Italy", "Greece", "France", "USA"],
+    ["“Happy Birthday to You” started life as a song called…", "Good Morning to All", "Happy Day to You", "Cheers to You", "Birthday Cheer"],
+    ["How many minutes are in a day?", "1,440", "1,240", "1,400", "1,600"],
+    ["What gas do plants take in from the air?", "Carbon dioxide", "Oxygen", "Nitrogen", "Helium"],
+    ["Which gas makes party balloons float?", "Helium", "Oxygen", "Carbon dioxide", "Argon"],
+    ["What is the birthstone for April?", "Diamond", "Ruby", "Emerald", "Sapphire"],
+    ["How many players does a cricket team have on the field?", "11", "9", "10", "12"],
+    ["What is the capital of Australia?", "Canberra", "Sydney", "Melbourne", "Perth"],
+    ["How many legs does a spider have?", "8", "6", "10", "12"],
+    ["What is the fastest land animal?", "Cheetah", "Lion", "Horse", "Greyhound"],
+    ["Which festival is known as the Festival of Lights?", "Diwali", "Holi", "Eid", "Navratri"],
+    ["Mix blue and yellow paint and you get…", "Green", "Purple", "Orange", "Brown"],
+    ["How many continents are there?", "7", "5", "6", "8"],
+    ["Who painted the Mona Lisa?", "Leonardo da Vinci", "Michelangelo", "Picasso", "Van Gogh"],
+    ["What is the hardest natural substance?", "Diamond", "Gold", "Iron", "Quartz"],
+    ["What is the smallest prime number?", "2", "1", "3", "0"],
+    ["In which year did the first iPhone come out?", "2007", "2005", "2009", "2010"],
+    ["Which planet has the most famous rings?", "Saturn", "Jupiter", "Uranus", "Neptune"],
+    ["How many hours are in a week?", "168", "144", "172", "186"],
+    ["What do bees make?", "Honey", "Silk", "Butter", "Jam"],
+    ["What is the tallest mountain in the world?", "Mount Everest", "K2", "Kilimanjaro", "Mont Blanc"],
+    ["What is H₂O better known as?", "Water", "Salt", "Hydrogen", "Air"],
+    ["Which instrument has 88 keys?", "Piano", "Guitar", "Violin", "Flute"],
+    ["What is the main ingredient in guacamole?", "Avocado", "Tomato", "Cucumber", "Peas"],
+    ["How many days are in a leap year?", "366", "365", "364", "367"],
+    ["Which sport uses a shuttlecock?", "Badminton", "Tennis", "Squash", "Table tennis"],
+    ["What is the currency of Japan?", "Yen", "Won", "Yuan", "Ringgit"],
+    ["How many cards are in a standard deck, without jokers?", "52", "54", "48", "50"],
+    ["What is the largest planet in our solar system?", "Jupiter", "Saturn", "Neptune", "Earth"],
+    ["Which country is home to the Taj Mahal?", "India", "Pakistan", "Egypt", "Turkey"],
+    ["How many strings does a standard guitar have?", "6", "4", "5", "8"],
+    ["Which animal is known as the “ship of the desert”?", "Camel", "Horse", "Elephant", "Donkey"],
+  ];
+  const QUIZ_SECS = 15, REVEAL_MS = 7000, BOARD_MS = 9000, BOARD_EVERY = 10;
+  const SHAPES = ["▲", "◆", "●", "■"];
+  // "question | right | wrong | wrong | wrong" per line; 2–4 answers.
+  const parseQuestions = text => String(text || "").split("\n").map(l => l.split("|").map(x => x.trim()).filter(Boolean))
+    .filter(parts => parts.length >= 3).map(parts => parts.slice(0, 5));
+  const scoreKey = name => String(name).trim().toLowerCase().slice(0, 20);
+  const scoreList = g => Object.values(g.scores || {}).filter(x => x && typeof x.pts === "number").sort((a, b) => b.pts - a.pts);
+  function addPoints(scores, name, pts) {
+    const k = scoreKey(name), cur = (scores || {})[k];
+    return { ...(scores || {}), [k]: { name: String(name).slice(0, 20), pts: (cur ? cur.pts : 0) + pts } };
+  }
+  const prizePoints = (g, stageIndex) => stagesFor(g).length === 1 ? 2000 : [500, 1000, 2000][stageIndex] || 0;
+
   const PRIZES = [
     "Winner gets the first slice of cake 🎂",
     "Winner picks the next song 🎧",
@@ -850,7 +961,7 @@
   };
 
   // ================= HOST =================
-  const H = { code: null, game: null, unsub: null, room: null, peers: [], writing: false, queued: null, lastCalledLen: -1, claimsSeen: new Map(), ticker: null };
+  const H = { answers: new Map(), usedQ: new Set(), customQs: [], quizCorrect: null, code: null, game: null, unsub: null, room: null, peers: [], writing: false, queued: null, lastCalledLen: -1, claimsSeen: new Map(), ticker: null };
 
   // One write at a time; the latest requested state wins.
   async function writeGame(next) {
@@ -884,10 +995,12 @@
       const game = {
         code, round: 1, status: "lobby", mode: $("setMode").value, maxPlayers,
         pattern: $("setPattern").value, interval: +$("setInterval").value, challengeEvery: +$("setChallenge").value,
+        quizEvery: +$("setQuiz").value, quiz: null, board: null, quizCount: 0, scores: {},
         called: [], nextAt: null, winners: [], falseClaims: [], challenge: null, resumeAfter: false, createdAt: Date.now(), updatedAt: Date.now(),
       };
       await sync.set(code, game);
       store.set("pb:host", code);
+      store.set("pb:questions", $("setQuestions").value);
       openHost(code, game);
     } catch (e) {
       $("hostErr").textContent = netKind === "peer"
@@ -908,6 +1021,9 @@
 
   async function openHost(code, game) {
     H.code = code; H.game = game; H.lastCalledLen = game.called.length; H.claimsSeen = new Map();
+    H.customQs = parseQuestions(store.get("pb:questions"));
+    const saved = store.get("pb:quizans:" + code);
+    H.quizCorrect = saved && game.quiz && saved.id === game.quiz.id ? saved.correct : null;
     hostSeenWinner = game.winners.length ? game.winners.at(-1).at : 0;
     show("viewHost");
     buildBoard($("hBoard"), modeOf(game));
@@ -927,8 +1043,67 @@
   function hostTick() {
     const g = H.game;
     if (!g) return;
-    if (g.status === "live" && g.nextAt && Date.now() >= g.nextAt && !H.writing) drawBall();
+    const now = Date.now();
+    if (!H.writing && g.quiz && g.quiz.phase === "question" && (now >= g.quiz.endsAt || allAnswered(g))) revealQuiz();
+    else if (!H.writing && g.quiz && g.quiz.phase === "reveal" && now >= g.quiz.revealUntil) finishQuiz();
+    else if (!H.writing && g.board && now >= g.board.until) finishBoard();
+    else if (g.status === "live" && g.nextAt && now >= g.nextAt && !H.writing && !g.quiz && !g.board) drawBall();
     renderCountdown("h", g);
+    tickQuiz(g, 0);
+  }
+
+  // ---- quiz + scoreboard (host side) ----
+  function newQuiz(g) {
+    let pick = H.customQs.find(q => !H.usedQ.has(q[0]));
+    if (!pick) {
+      let pool = QUESTIONS.filter(q => !H.usedQ.has(q[0]));
+      if (!pool.length) { H.usedQ = new Set(H.customQs.map(q => q[0])); pool = QUESTIONS; }
+      pick = pool[rand(pool.length)];
+    }
+    H.usedQ.add(pick[0]);
+    const order = shuffle(pick.slice(1).map((text, i) => ({ text, right: i === 0 })));
+    const id = Date.now();
+    H.quizCorrect = order.findIndex(o => o.right);
+    H.answers = new Map();
+    store.set("pb:quizans:" + H.code, { id, correct: H.quizCorrect });
+    return { id, num: (g.quizCount || 0) + 1, q: pick[0], options: order.map(o => o.text), startAt: id, endsAt: id + QUIZ_SECS * 1000, phase: "question" };
+  }
+  const quizPlayers = g => playersFrom(H.peers).slice(0, g.maxPlayers);
+  const allAnswered = g => { const ps = quizPlayers(g); return ps.length > 0 && ps.every(p => H.answers.has(scoreKey(p.presence.name))); };
+  function collectAnswers(g) {
+    if (!g.quiz || g.quiz.phase !== "question") return;
+    let changed = false;
+    quizPlayers(g).forEach(p => {
+      const a = p.presence.answer, k = scoreKey(p.presence.name);
+      if (!a || a.id !== g.quiz.id || H.answers.has(k) || !Number.isInteger(a.choice) || a.choice < 0 || a.choice >= g.quiz.options.length) return;
+      H.answers.set(k, { name: p.presence.name.slice(0, 20), choice: a.choice, ms: Math.max(0, Date.now() - g.quiz.startAt) });
+      changed = true;
+    });
+    if (changed) renderQuizLayer(g, "h");
+  }
+  function revealQuiz() {
+    const g = H.game, q = g.quiz, dur = QUIZ_SECS * 1000;
+    if (H.quizCorrect === null) { patch({ quiz: { ...q, phase: "reveal", correct: -1, results: [], revealUntil: Date.now() + REVEAL_MS } }); return; }
+    let scores = g.scores || {};
+    const results = [...H.answers.values()].map(a => {
+      const pts = a.choice === H.quizCorrect ? Math.round(1000 * (1 - Math.min(a.ms, dur) / dur / 2)) : 0;
+      if (pts) scores = addPoints(scores, a.name, pts);
+      return { name: a.name, choice: a.choice, pts, ms: a.ms };
+    }).sort((a, b) => b.pts - a.pts || a.ms - b.ms);
+    patch({ scores, quizCount: (g.quizCount || 0) + 1, quiz: { ...q, phase: "reveal", correct: H.quizCorrect, results, revealUntil: Date.now() + REVEAL_MS } });
+  }
+  const resumeFields = g => g.resumeAfter ? { status: "live", nextAt: Date.now() + g.interval * 1000, resumeAfter: false } : { resumeAfter: false };
+  function finishQuiz() {
+    const g = H.game;
+    if (g.called.length % BOARD_EVERY === 0 && g.called.length) patch({ quiz: null, board: { id: Date.now(), until: Date.now() + BOARD_MS } });
+    else patch({ quiz: null, ...resumeFields(g) });
+  }
+  const finishBoard = () => patch({ board: null, ...resumeFields(H.game) });
+
+  function renderScores(g) {
+    const list = scoreList(g);
+    $("hScores").innerHTML = list.length ? `<ol class="scores">${list.map((x, i) => `<li><span class="rk">${i + 1}</span><span class="nm">${esc(x.name)}</span><span class="pts">${x.pts.toLocaleString()}</span></li>`).join("")}</ol>`
+      : `<div class="empty">No points yet. The first quiz question comes after ${g.quizEvery || 5} balls.</div>`;
   }
 
   function drawBall() {
@@ -938,7 +1113,12 @@
     const n = left[rand(left.length)];
     const called = [...g.called, n];
     const p = { called };
-    if (g.challengeEvery && called.length % g.challengeEvery === 0) {
+    const pauseFor = () => { p.resumeAfter = g.status === "live"; p.status = "paused"; p.nextAt = null; };
+    if (g.quizEvery && called.length % g.quizEvery === 0) {
+      p.quiz = newQuiz(g); pauseFor();
+    } else if (called.length % BOARD_EVERY === 0) {
+      p.board = { id: Date.now(), until: Date.now() + BOARD_MS }; pauseFor();
+    } else if (g.challengeEvery && called.length % g.challengeEvery === 0) {
       p.challenge = { id: Date.now(), text: pickFrom(CHALLENGES) };
       p.resumeAfter = g.status === "live";
       p.status = "paused"; p.nextAt = null;
@@ -955,7 +1135,19 @@
     else if (!g.called.length) patch({ status: "live", nextAt: Date.now() + 3000, challenge: null }); // first ball after a 3s countdown
     else startAuto();
   };
-  $("hDraw").onclick = () => drawBall();
+  $("hDraw").onclick = () => { if (H.game.quiz || H.game.board) return toast("Finish the quiz or scoreboard first."); drawBall(); };
+  $("hQuizEvery").onchange = () => patch({ quizEvery: +$("hQuizEvery").value });
+  $("qBox").addEventListener("click", e => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    if (b.id === "qEndNow" && H.game && H.game.quiz) revealQuiz();
+    else if (b.id === "qNext" && H.game && H.game.quiz) finishQuiz();
+    else if (b.id === "qBoardDone" && H.game && H.game.board) finishBoard();
+    else if (b.dataset.ans !== undefined && P.game && P.game.quiz && P.game.quiz.phase === "question" && !(P.quizAnswer && P.quizAnswer.id === P.game.quiz.id)) {
+      P.quizAnswer = { id: P.game.quiz.id, choice: +b.dataset.ans };
+      pushPresence(); renderQuizLayer(P.game, "p");
+    }
+  });
   $("hUndo").onclick = () => { if (H.game.called.length) patch({ called: H.game.called.slice(0, -1), status: "paused", nextAt: null }); };
   $("hChallenge").onclick = () => patch({ challenge: { id: Date.now(), text: pickFrom(CHALLENGES) }, resumeAfter: H.game.status === "live", status: "paused", nextAt: null });
   $("hInterval").onchange = () => {
@@ -977,7 +1169,7 @@
   };
   function newRound() {
     closeModal();
-    patch({ round: H.game.round + 1, status: "lobby", called: [], nextAt: null, winners: [], falseClaims: [], challenge: null, resumeAfter: false });
+    patch({ round: H.game.round + 1, status: "lobby", called: [], nextAt: null, winners: [], falseClaims: [], challenge: null, quiz: null, board: null, resumeAfter: false });
     H.claimsSeen = new Map();
     toast("New round! Everyone gets a fresh card.");
   }
@@ -997,7 +1189,7 @@
     $("hTotal").textContent = totalBalls(mode);
     $("hLevel").textContent = MODE_NAMES[mode];
     $("hPatternRow").hidden = !isParty(mode);
-    $("hInterval").value = g.interval; $("hPattern").value = g.pattern; $("hChallengeEvery").value = g.challengeEvery;
+    $("hInterval").value = g.interval; $("hPattern").value = g.pattern; $("hChallengeEvery").value = g.challengeEvery; $("hQuizEvery").value = g.quizEvery || 0;
     const isNew = g.called.length > H.lastCalledLen && H.lastCalledLen >= 0;
     renderBall("h", g, isNew);
     if (isNew) say(ballText(g.called.at(-1), mode), $("hVoice").checked);
@@ -1012,6 +1204,8 @@
       ? "<div class=\"count\">Winners this round</div>" + g.winners.map(w => `<div>🏆 ${esc(w.name)}${w.stage ? ` (${esc(w.stage)})` : ""} <span>· ${esc(w.prize)}</span></div>`).join("")
       : "";
     renderPlayers();
+    renderScores(g);
+    renderQuizLayer(g, "h");
     hostModal(g);
   }
 
@@ -1030,6 +1224,7 @@
   function renderPlayers() {
     const g = H.game;
     if (!g) return;
+    collectAnswers(g);
     const list = playersFrom(H.peers);
     $("hPlayersNum").textContent = Math.min(list.length, g.maxPlayers);
     $("hPlayersSub").textContent = list.length ? (g.status === "lobby" ? "Everyone in? Press Start." : "Live progress on each card.") : "Waiting for friends to join with the code.";
@@ -1061,6 +1256,7 @@
       const next = {};
       if (falses.length) next.falseClaims = [...(g.falseClaims || []), ...falses].slice(-10);
       if (winner) Object.assign(next, { status: "paused", nextAt: null, challenge: null,
+        scores: addPoints(g.scores, winner.presence.name, prizePoints(g, g.winners.length)),
         winners: [...g.winners, { name: winner.presence.name.slice(0, 20), peer: winner.peer, stage: stage.label, prize: pickFrom(PRIZES), at: Date.now() }] });
       falses.forEach(f => toast(`😬 ${f.name} called PARVA too early. Card reset!`));
       patch(next);
@@ -1147,7 +1343,7 @@
     pushPresence();
     P.room.onPeers(peers => { P.peers = peers; renderFull(); });
     clearInterval(P.ticker);
-    P.ticker = setInterval(() => P.game && renderCountdown("p", P.game), 200);
+    P.ticker = setInterval(() => { if (P.game) { renderCountdown("p", P.game); tickQuiz(P.game, clockOffset); } }, 200);
   }
 
   function loadCard() {
@@ -1159,7 +1355,7 @@
   }
   const saveCard = () => store.set(P.cardKey, { mode: modeOf(P.game), cells: P.cells, marked: P.marked });
   const isMarked = (c, r) => !!(P.marked & (1 << (c * 5 + r)));
-  const pushPresence = () => P.room && P.room.presence({ role: "player", name: P.name.slice(0, 20), cells: P.cells, marked: P.marked, round: P.game.round, claim: P.claim, claimStage: P.claimStage, joinedAt: P.joinedAt });
+  const pushPresence = () => P.room && P.room.presence({ role: "player", name: P.name.slice(0, 20), cells: P.cells, marked: P.marked, round: P.game.round, claim: P.claim, claimStage: P.claimStage, answer: P.quizAnswer || null, joinedAt: P.joinedAt });
 
   function renderFull() {
     const list = playersFrom(P.peers);
@@ -1187,6 +1383,8 @@
     const markedCount = toFill.filter(([c, r]) => isMarked(c, r)).length;
     const info = mode === "easy" ? `Lines: ${Math.min(check.lines, 12)}` : hard ? `Marked ${markedCount}/${toFill.length}` : `Win: ${PATTERN_NAMES[g.pattern]}`;
     $("pStage").textContent = stage ? `Next prize: ${stage.label}` : "All prizes won this round";
+    const ranks = scoreList(g), myRank = ranks.findIndex(x => scoreKey(x.name) === scoreKey(P.name));
+    $("pScore").textContent = myRank >= 0 ? `⭐ ${ranks[myRank].pts.toLocaleString()} pts · #${myRank + 1} of ${ranks.length}` : "⭐ 0 pts";
 
     let html = `<div class="card${check.win && !hard ? " winner" : ""}"><div class="card-top"><span>${esc(P.name)}’s card</span><span class="pattern">${info}</span></div><div class="card-grid${hard ? " no-head" : ""}">`;
     if (!hard) LETTERS.forEach((L, c) => html += `<div class="card-head${mode === "easy" && c < check.lines ? " crossed" : ""}" style="--c:${COLORS[c]}">${L}</div>`);
@@ -1211,6 +1409,7 @@
     btn.textContent = claimed ? "Checking your card…" : `PARVA! ${stage ? stage.label : ""} 🎉`;
     pushPresence();
     renderFull();
+    renderQuizLayer(g, "p");
     playerModal(g);
   }
 
@@ -1330,13 +1529,74 @@
       text = left > 300 ? `Next ball in ${Math.ceil(left / 1000)}s` : "Here it comes…";
       pct = 100 - Math.min(100, left / (g.interval * 1000) * 100);
       paused = false;
-    } else if (g.challenge) text = "Challenge time! 🎁";
+    } else if (g.quiz) text = "Quiz time! 🧠";
+    else if (g.board) text = "Scoreboard time! 🏆";
+    else if (g.challenge) text = "Challenge time! 🎁";
     else if (g.winners.length && g.status !== "live") text = `🏆 ${g.winners.at(-1).name} won${g.winners.at(-1).stage ? " " + g.winners.at(-1).stage : ""}!`;
     else if (g.status === "lobby") text = prefix === "h" ? "Press Start when everyone’s in" : "Waiting for the host to start";
     else text = "Paused by the host";
     if (el.textContent !== text) el.textContent = text;
     el.classList.toggle("paused", paused);
     ring.style.setProperty("--pct", pct.toFixed(1));
+  }
+
+  // ================= quiz + scoreboard layer =================
+  // who: "h" (host console, shows answer counts and controls) or "p" (player, answers).
+  function renderQuizLayer(g, who) {
+    const ov = $("qOverlay"), box = $("qBox"), q = g.quiz, b = g.board;
+    if (!q && !b) { ov.hidden = true; ov.dataset.key = ""; return; }
+    const me = who === "p" ? scoreKey(P.name) : null;
+    const answered = who === "p" && q && P.quizAnswer && P.quizAnswer.id === q.id ? P.quizAnswer.choice : null;
+    const key = q ? `q${q.id}${q.phase}${who === "h" ? H.answers.size + "/" + quizPlayers(g).length : answered}` : `b${b.id}${who === "p" ? JSON.stringify(g.scores) : ""}`;
+    if (ov.dataset.key === key && !ov.hidden) return;
+    ov.dataset.key = key; ov.hidden = false;
+    const ranks = scoreList(g);
+    const rankRows = (list, gains) => `<ol class="scores">${list.map((x, i) => {
+      const gain = gains && gains[scoreKey(x.name)];
+      return `<li class="${me && scoreKey(x.name) === me ? "me" : ""}"><span class="rk">${i + 1}</span><span class="nm">${esc(x.name)}</span>${gain ? `<span class="gain">+${gain}</span>` : ""}<span class="pts">${x.pts.toLocaleString()}</span></li>`;
+    }).join("") || "<li>No points yet</li>"}</ol>`;
+    let html;
+    if (b) {
+      html = `<div class="kicker">After ${g.called.length} balls</div><h3>🏆 Scoreboard</h3>${rankRows(ranks)}
+        <div class="qtimer" style="margin-top:14px"><div id="qTimerBar"></div></div>
+        ${who === "h" ? `<div class="actions" style="margin-top:14px"><button class="primary" id="qBoardDone">Continue</button></div>` : ""}`;
+    } else if (q.phase === "question") {
+      const opts = q.options.map((o, i) => who === "p"
+        ? `<button class="ans a${i}${answered === i ? " picked" : answered !== null ? " dim" : ""}" data-ans="${i}" ${answered !== null ? "disabled" : ""}><span class="sh">${SHAPES[i]}</span>${esc(o)}</button>`
+        : `<div class="ans a${i}"><span class="sh">${SHAPES[i]}</span>${esc(o)}</div>`).join("");
+      html = `<div class="kicker">🧠 Quiz question ${q.num || ""} · faster answers score more</div><div class="quiz-q">${esc(q.q)}</div>
+        <div class="qtimer"><div id="qTimerBar"></div></div><div class="qsecs" id="qSecs"></div>
+        <div class="answers">${opts}</div>
+        ${who === "p" ? `<p class="who" style="margin-top:12px">${answered !== null ? "Answer locked in! Waiting for the others…" : "Tap your answer!"}</p>`
+          : `<p class="who" style="margin-top:12px">${H.answers.size} of ${quizPlayers(g).length} answered</p><div class="actions" style="margin-top:10px"><button id="qEndNow">End question now</button></div>`}`;
+    } else {
+      const opts = q.options.map((o, i) => `<div class="ans a${i}${i === q.correct ? " correct" : " dim"}"><span class="sh">${SHAPES[i]}</span>${esc(o)}${i === q.correct ? " ✓" : ""}</div>`).join("");
+      const gains = {}; (q.results || []).forEach(r => { if (r.pts) gains[scoreKey(r.name)] = r.pts; });
+      let mine = "";
+      if (who === "p") {
+        const r = (q.results || []).find(x => scoreKey(x.name) === me);
+        mine = !r ? `<div class="result-big bad">⌛ Too slow!</div><p class="who">No answer this time.</p>`
+          : r.pts ? `<div class="result-big good">+${r.pts} points! ⚡</div><p class="who">Answered in ${(r.ms / 1000).toFixed(1)}s</p>`
+          : `<div class="result-big bad">❌ Wrong answer</div><p class="who">No points this time.</p>`;
+      }
+      html = `<div class="kicker">The answer is…</div><div class="quiz-q">${esc(q.q)}</div><div class="answers">${opts}</div>${mine}
+        <h3 style="font-size:24px;margin-top:16px">🏆 Leaderboard</h3>${rankRows(ranks.slice(0, who === "h" ? 10 : 5), gains)}
+        ${who === "h" ? `<div class="actions" style="margin-top:14px"><button class="primary" id="qNext">Next</button></div>` : ""}`;
+    }
+    box.innerHTML = html;
+    tickQuiz(g, who === "p" ? clockOffset : 0);
+  }
+  function tickQuiz(g, offset) {
+    const bar = $("qTimerBar");
+    if (!bar) return;
+    const now = Date.now() + offset;
+    let left = 0, total = 1;
+    if (g.quiz && g.quiz.phase === "question") { left = g.quiz.endsAt - now; total = QUIZ_SECS * 1000; }
+    else if (g.quiz) { left = g.quiz.revealUntil - now; total = REVEAL_MS; }
+    else if (g.board) { left = g.board.until - now; total = BOARD_MS; }
+    bar.style.width = Math.max(0, Math.min(100, left / total * 100)) + "%";
+    const secs = $("qSecs");
+    if (secs) secs.textContent = Math.max(0, Math.ceil(left / 1000)) + "s";
   }
 
   // ================= modal =================
