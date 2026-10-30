@@ -12,7 +12,8 @@ A one-page bingo app. Open `index.html` in any browser — no install needed.
 
 **Play:** https://techwhiztejas.github.io/GameNight/ (GitHub Pages, no sign-in). `classic.html` is the original single-screen bingo.
 
-- **Host** picks the number of players, ball type (party pictures or numbers), winning pattern, seconds between balls and how often a party challenge pops up, then gets a 4-character join code.
+- **Levels:** *Easy* – numbers 1–25 anywhere on the card; every completed line crosses off a letter of P-A-R-V-A, with prizes for 1 line, 2 lines and full PARVA. *Hard* – numbers 1–75, no auto-mark and no list of past balls; fill the whole card from memory, and a full card is sent to the host to check against the drawn balls. *Party pictures* – picture balls in P-A-R-V-A columns with a chosen pattern.
+- **Host** picks the number of players, level, winning pattern (party level), seconds between balls and how often a party challenge pops up, then gets a 4-character join code.
 - **Players** open the same link on their phones, tap *Join a game*, enter the code and their name. They see the latest ball, a countdown to the next one, and their own P-A-R-V-A card below.
 - When a card has the pattern the player taps **PARVA!**; the host console checks the card and confirms the winner, which shows on every phone with confetti and a random prize.
 - Phones connect straight to the host's browser (WebRTC via PeerJS), so the host must keep the console open. If the host reloads, tap *Back to game* and players reconnect by themselves.

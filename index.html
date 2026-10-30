@@ -190,6 +190,10 @@
   .cell.free::after { display: none; }
   .cell.called:not(.marked) { box-shadow: inset 0 0 0 3px var(--accent); }
   .cell.win { background: var(--ok); color: #04221a; }
+  .card-head.crossed { opacity: .35; position: relative; }
+  .card-head.crossed::after { content: ""; position: absolute; left: 12%; right: 12%; top: 50%; height: 4px; margin-top: -2px; border-radius: 4px; background: #1d1338; transform: rotate(-12deg); }
+  .level-note { margin: -2px 0 6px; color: var(--muted); font-size: 13px; font-weight: 700; }
+  .card-grid.no-head .cell { font-size: 26px; }
   .cell.win .t { color: #04221a; }
 
   /* popups */
@@ -244,13 +248,15 @@
           <div class="stepper"><button id="plMinus" aria-label="Fewer players">−</button><output id="plCount">6</output><button id="plPlus" aria-label="More players">+</button></div>
         </div>
         <div class="row">
-          <label for="setMode">Ball type</label>
+          <label for="setMode">Level</label>
           <select id="setMode">
-            <option value="party">🎉 Party pictures (45)</option>
-            <option value="numbers">🔢 Numbers (75)</option>
+            <option value="easy">🙂 Easy</option>
+            <option value="hard">🔥 Hard</option>
+            <option value="party">🎉 Party pictures</option>
           </select>
         </div>
-        <div class="row">
+        <p class="level-note" id="setModeNote"></p>
+        <div class="row" id="setPatternRow">
           <label for="setPattern">How to win</label>
           <select id="setPattern">
             <option value="line">Any line</option>
@@ -263,6 +269,8 @@
         <div class="row">
           <label for="setInterval">New ball every</label>
           <select id="setInterval">
+            <option value="3">3 seconds</option>
+            <option value="4">4 seconds</option>
             <option value="5">5 seconds</option>
             <option value="8">8 seconds</option>
             <option value="10" selected>10 seconds</option>
@@ -319,7 +327,7 @@
             </div>
             <div style="text-align:right">
               <div class="count"><span id="hPlayersNum">0</span> of <span id="hPlayersMax">6</span> players</div>
-              <div class="count">Round <span id="hRound">1</span></div>
+              <div class="count"><span id="hLevel">Easy</span> · Round <span id="hRound">1</span></div>
             </div>
           </div>
         </section>
@@ -356,7 +364,7 @@
                 <option value="60">60 seconds</option>
               </select>
             </div>
-            <div class="row">
+            <div class="row" id="hPatternRow">
               <label for="hPattern">How to win</label>
               <select id="hPattern">
                 <option value="line">Any line</option>
@@ -415,6 +423,7 @@
             <div class="ball-label" id="pBallLabel">Waiting…</div>
             <div class="countdown paused" id="pCountdown">The host hasn’t started yet</div>
             <div class="count">Balls picked: <span id="pCalled">0</span></div>
+            <div class="count" id="pStage"></div>
             <div class="recent" id="pRecent"></div>
           </div>
         </div>
@@ -430,7 +439,7 @@
       <div id="pCardWrap"></div>
       <button class="parva-btn" id="pParva" disabled>PARVA!</button>
       <section class="panel">
-        <div class="row" style="border-top:0">
+        <div class="row" style="border-top:0" id="pAutoRow">
           <label for="pAuto">Mark my card for me</label>
           <label class="switch"><input type="checkbox" id="pAuto" checked><span></span></label>
         </div>
@@ -522,11 +531,23 @@
 
   // ================= helpers =================
   const $ = id => document.getElementById(id);
-  const colSize = mode => mode === "numbers" ? 15 : 9;
-  const colOf = (n, mode) => Math.floor((n - 1) / colSize(mode));
-  const itemOf = (n, mode) => PARTY[colOf(n, mode)][(n - 1) % 9];
-  const ballText = (n, mode) => mode === "numbers" ? `${LETTERS[colOf(n, mode)]} ${n}` : itemOf(n, mode).t;
-  const ballShort = (n, mode) => mode === "numbers" ? LETTERS[colOf(n, mode)] + n : itemOf(n, mode).e;
+  // Levels: easy = numbers 1–25 anywhere, each line crosses a letter of PARVA;
+  // hard = numbers 1–75 anywhere, fill the whole card with no help; party = picture balls in PARVA columns.
+  const MODES = { easy: 25, hard: 75, party: 45 };
+  const MODE_NAMES = { easy: "Easy", hard: "Hard", party: "Party pictures" };
+  const MODE_NOTES = {
+    easy: "Numbers 1–25 anywhere on the card. Every line crosses off a letter of PARVA. Prizes for 1 line, 2 lines and all 5.",
+    hard: "Numbers 1–75, no auto-mark, no list of past balls. Fill the whole card from memory. The host’s screen checks it.",
+    party: "Picture balls in P-A-R-V-A columns. You pick the winning pattern.",
+  };
+  const modeOf = g => MODES[g.mode] ? g.mode : "party";
+  const totalBalls = mode => MODES[mode] || 45;
+  const isParty = mode => mode === "party";
+  const colOf = n => Math.floor((n - 1) / 9);
+  const itemOf = n => PARTY[colOf(n)][(n - 1) % 9];
+  const ballColor = (n, mode) => COLORS[isParty(mode) ? colOf(n) : (n - 1) % 5];
+  const ballText = (n, mode) => isParty(mode) ? itemOf(n).t : String(n);
+  const ballShort = (n, mode) => isParty(mode) ? itemOf(n).e : n;
   const rand = n => Math.floor(Math.random() * n);
   const pickFrom = (list, not) => { let x; do { x = list[rand(list.length)]; } while (list.length > 1 && x === not); return x; };
   const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = rand(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; };
@@ -540,7 +561,12 @@
   const newCode = () => Array.from({ length: 4 }, () => CODE_CHARS[rand(CODE_CHARS.length)]).join("");
 
   function makeCard(mode) {
-    const size = colSize(mode);
+    if (!isParty(mode)) {
+      const nums = shuffle(Array.from({ length: totalBalls(mode) }, (_, i) => i + 1)).slice(0, 25);
+      if (mode === "hard") nums[12] = 0;
+      return ALL.map(c => ALL.map(r => nums[c * 5 + r]));
+    }
+    const size = 9;
     const cols = LETTERS.map((_, c) => shuffle(Array.from({ length: size }, (_, k) => c * size + k + 1)).slice(0, 5));
     cols[2][2] = 0;
     return cols; // cols[c][r]
@@ -557,6 +583,32 @@
       if (got / shape.length >= best / (len || 1)) { best = got; len = shape.length; }
     }
     return [best, len];
+  }
+
+  function stagesFor(g) {
+    const m = modeOf(g);
+    if (m === "easy") return [{ lines: 1, label: "1 line" }, { lines: 2, label: "2 lines" }, { lines: 5, label: "Full PARVA" }];
+    if (m === "hard") return [{ label: "Full card" }];
+    return [{ label: PATTERN_NAMES[g.pattern] }];
+  }
+  const stageOf = g => stagesFor(g)[g.winners.length] || null; // null once every prize is won
+
+  // Checks a card against the balls actually called. A square only counts if it's marked AND was called.
+  function cardCheck(cells, isMarked, called, g) {
+    const m = modeOf(g), stage = stageOf(g);
+    const ok = (c, r) => cells[c][r] === 0 || (isMarked(c, r) && called.has(cells[c][r]));
+    const lines = PATTERNS.line.filter(sh => sh.every(([c, r]) => ok(c, r)));
+    const squares = ALL.flatMap(c => ALL.map(r => [c, r])).filter(([c, r]) => cells[c][r] !== 0);
+    const wrong = squares.filter(([c, r]) => isMarked(c, r) && !called.has(cells[c][r])).length;
+    if (m === "easy") {
+      return { win: !!stage && lines.length >= stage.lines, shape: lines.flat(), lines: lines.length, wrong, prog: `${lines.length} line${lines.length === 1 ? "" : "s"}` };
+    }
+    if (m === "hard") {
+      const good = squares.filter(([c, r]) => ok(c, r)).length;
+      return { win: !!stage && good === squares.length, shape: [], lines: lines.length, wrong, prog: `${good}/${squares.length}` };
+    }
+    const shape = winShape(cells, isMarked, called, g.pattern), [b, l] = bestProgress(cells, isMarked, called, g.pattern);
+    return { win: !!stage && !!shape, shape: shape || [], lines: lines.length, wrong, prog: `${b}/${l}` };
   }
 
   function say(text, on) {
@@ -823,6 +875,9 @@
   const patch = p => writeGame({ ...H.game, ...p, updatedAt: Date.now() });
 
   let maxPlayers = 6;
+  const syncSetup = () => { $("setModeNote").textContent = MODE_NOTES[$("setMode").value]; $("setPatternRow").hidden = $("setMode").value !== "party"; };
+  $("setMode").onchange = syncSetup;
+  syncSetup();
   $("plMinus").onclick = () => { maxPlayers = Math.max(1, maxPlayers - 1); $("plCount").textContent = maxPlayers; };
   $("plPlus").onclick = () => { maxPlayers = Math.min(30, maxPlayers + 1); $("plCount").textContent = maxPlayers; };
 
@@ -865,7 +920,7 @@
     H.code = code; H.game = game; H.lastCalledLen = game.called.length; H.claimsSeen = new Map();
     hostSeenWinner = game.winners.length ? game.winners.at(-1).at : 0;
     show("viewHost");
-    buildBoard($("hBoard"), game.mode);
+    buildBoard($("hBoard"), modeOf(game));
     renderHost();
     H.unsub && H.unsub();
     H.unsub = sync.watch(code, g => {
@@ -887,7 +942,7 @@
   }
 
   function drawBall() {
-    const g = H.game, total = colSize(g.mode) * 5;
+    const g = H.game, total = totalBalls(modeOf(g));
     const left = Array.from({ length: total }, (_, i) => i + 1).filter(n => !g.called.includes(n));
     if (!left.length) { patch({ status: "paused", nextAt: null }); toast("Every ball has been picked!"); return; }
     const n = left[rand(left.length)];
@@ -948,20 +1003,23 @@
     $("hCode").textContent = $("hCode2").textContent = g.code;
     $("hPlayersMax").textContent = g.maxPlayers;
     $("hRound").textContent = g.round;
-    $("hTotal").textContent = colSize(g.mode) * 5;
+    const mode = modeOf(g);
+    $("hTotal").textContent = totalBalls(mode);
+    $("hLevel").textContent = MODE_NAMES[mode];
+    $("hPatternRow").hidden = !isParty(mode);
     $("hInterval").value = g.interval; $("hPattern").value = g.pattern; $("hChallengeEvery").value = g.challengeEvery;
     const isNew = g.called.length > H.lastCalledLen && H.lastCalledLen >= 0;
     renderBall("h", g, isNew);
-    if (isNew) say(g.mode === "numbers" ? `${LETTERS[colOf(g.called.at(-1), g.mode)]}, ${g.called.at(-1)}` : ballText(g.called.at(-1), g.mode), $("hVoice").checked);
+    if (isNew) say(ballText(g.called.at(-1), mode), $("hVoice").checked);
     H.lastCalledLen = g.called.length;
     $("hStart").textContent = g.status === "live" ? "⏸ Pause auto draw" : g.called.length ? "▶ Resume auto draw" : "▶ Start auto draw";
     $("hStart").classList.toggle("on", g.status === "live");
     $("hUndo").disabled = !g.called.length;
-    $("hDraw").disabled = g.called.length >= colSize(g.mode) * 5;
+    $("hDraw").disabled = g.called.length >= totalBalls(mode);
     document.querySelectorAll("#hBoard .board-cell.hit").forEach(el => el.classList.remove("hit"));
     g.called.forEach(n => { const el = document.querySelector(`#hBoard [data-n="${n}"]`); el && el.classList.add("hit"); });
     $("hWinners").innerHTML = g.winners.length
-      ? "<div class=\"count\">Winners this round</div>" + g.winners.map(w => `<div>🏆 ${esc(w.name)} <span>· ${esc(w.prize)}</span></div>`).join("")
+      ? "<div class=\"count\">Winners this round</div>" + g.winners.map(w => `<div>🏆 ${esc(w.name)}${w.stage ? ` (${esc(w.stage)})` : ""} <span>· ${esc(w.prize)}</span></div>`).join("")
       : "";
     renderPlayers();
     hostModal(g);
@@ -976,7 +1034,7 @@
     if (!Array.isArray(pr.cells) || pr.cells.length !== 5 || pr.round !== g.round) return null;
     const called = new Set(g.called), bits = pr.marked | 0;
     const isMarked = (c, r) => !!(bits & (1 << (c * 5 + r)));
-    return { win: !!winShape(pr.cells, isMarked, called, g.pattern), prog: bestProgress(pr.cells, isMarked, called, g.pattern) };
+    return cardCheck(pr.cells, isMarked, called, g);
   }
 
   function renderPlayers() {
@@ -987,21 +1045,23 @@
     $("hPlayersSub").textContent = list.length ? (g.status === "lobby" ? "Everyone in? Press Start." : "Live progress on each card.") : "Waiting for friends to join with the code.";
     $("hPlayers").innerHTML = list.length ? list.map((p, i) => {
       const v = verifyPlayer(p.presence, g);
-      const prog = v ? (v.win ? "✅ has it!" : `${v.prog[0]}/${v.prog[1]}`) : "joining…";
+      const prog = v ? (v.win ? `✅ ${v.prog}` : v.prog) : "joining…";
       return `<div class="player${i >= g.maxPlayers ? " extra" : ""}"><div class="av" style="background:${COLORS[i % 5]}">${esc((p.presence.name[0] || "?").toUpperCase())}</div>
         <div class="nm">${esc(p.presence.name)}${i >= g.maxPlayers ? " · over the limit" : ""}</div><div class="prog">${prog}</div></div>`;
     }).join("") : `<div class="empty">No one yet. Share the code <b>${esc(g.code)}</b>.</div>`;
 
     // PARVA claims
-    const claims = list.slice(0, g.maxPlayers).filter(p => p.presence.claim && p.presence.round === g.round && H.claimsSeen.get(p.peer) !== p.presence.claim
-      && !g.winners.some(w => w.peer === p.peer));
+    const stage = stageOf(g);
+    const claims = !stage ? [] : list.slice(0, g.maxPlayers).filter(p => p.presence.claim && p.presence.round === g.round
+      && p.presence.claimStage === g.winners.length && H.claimsSeen.get(p.peer) !== p.presence.claim);
     const box = $("hClaims");
     if (!claims.length) { box.hidden = true; box.innerHTML = ""; return; }
     box.hidden = false;
-    box.innerHTML = "<h2>📣 Someone called PARVA!</h2>" + claims.map(p => {
+    box.innerHTML = `<h2>📣 Claim for ${esc(stage.label)}!</h2>` + claims.map(p => {
       const v = verifyPlayer(p.presence, g);
+      const why = !v ? "Couldn’t read their card" : v.wrong ? `${v.wrong} marked square${v.wrong === 1 ? " wasn’t" : "s weren’t"} called` : `Not there yet (${v.prog})`;
       return `<div class="claim"><div class="who">${esc(p.presence.name)}</div>
-        <div class="verdict ${v && v.win ? "ok" : "no"}">${v && v.win ? "✅ Their card checks out" : "❌ Their card doesn’t have the pattern yet"}</div>
+        <div class="verdict ${v && v.win ? "ok" : "no"}">${v && v.win ? "✅ Their card checks out against the drawn balls" : "❌ " + why}</div>
         <div class="acts"><button class="primary small" data-confirm="${esc(p.peer)}">Confirm winner</button><button class="small" data-dismiss="${esc(p.peer)}">Not a win</button></div></div>`;
     }).join("");
     if (g.status === "live" && claims.some(p => (verifyPlayer(p.presence, g) || {}).win)) pauseAuto();
@@ -1014,7 +1074,9 @@
     if (!p) return;
     H.claimsSeen.set(peer, p.presence.claim);
     if (b.dataset.confirm) {
-      patch({ status: "paused", nextAt: null, challenge: null, winners: [...H.game.winners, { name: p.presence.name.slice(0, 20), peer, prize: pickFrom(PRIZES), at: Date.now() }] });
+      const st = stageOf(H.game);
+      if (!st) return;
+      patch({ status: "paused", nextAt: null, challenge: null, winners: [...H.game.winners, { name: p.presence.name.slice(0, 20), peer, stage: st.label, prize: pickFrom(PRIZES), at: Date.now() }] });
     } else renderPlayers();
   });
 
@@ -1032,13 +1094,16 @@
         ],
       });
     } else if (w && w.at > hostSeenWinner) {
-      if (modalKey !== "w" + w.at) { celebrate(); playSong(); say(`Parva! ${w.name} wins!`, $("hVoice").checked); }
+      if (modalKey !== "w" + w.at) { celebrate(); playSong(); say(`Parva! ${w.name} wins ${w.stage || ""}!`, $("hVoice").checked); }
+      const next = stageOf(g);
       openModal({
-        kicker: "We have a winner", title: "PARVA! 🎉", big: true, who: `${w.name} got it after ${g.called.length} balls!`, text: w.prize, key: "w" + w.at,
+        kicker: `${w.stage || "We have a"} winner`, title: "PARVA! 🎉", big: true, who: `${w.name} got it after ${g.called.length} balls!`, text: w.prize, key: "w" + w.at,
         actions: [
           ["🔀 Different prize", "", () => patch({ winners: [...g.winners.slice(0, -1), { ...w, prize: pickFrom(PRIZES, w.prize) }] })],
-          ["🔄 New round", "", () => { hostSeenWinner = w.at; newRound(); }],
-          ["Keep playing", "primary", () => { hostSeenWinner = w.at; closeModal(); startAuto(); }],
+          ...(next ? [
+            ["🔄 New round", "", () => { hostSeenWinner = w.at; newRound(); }],
+            [`Keep playing for ${next.label}`, "primary", () => { hostSeenWinner = w.at; closeModal(); startAuto(); }],
+          ] : [["🔄 New round", "primary", () => { hostSeenWinner = w.at; newRound(); }]]),
         ],
       });
     } else if (modalKey && (modalKey[0] === "c" || modalKey[0] === "w")) closeModal();
@@ -1068,7 +1133,7 @@
     store.set("pb:joined:" + code, P.joinedAt);
     show("viewPlayer");
     loadCard();
-    if ($("pAuto").checked) markAllCalled();
+    if ($("pAuto").checked && modeOf(game) !== "hard") markAllCalled();
     renderPlayer();
     P.unsub && P.unsub();
     P.unsub = sync.watch(code, g => {
@@ -1089,12 +1154,13 @@
     const g = P.game;
     P.cardKey = `pb:card:${P.code}:${g.round}`;
     const saved = store.get(P.cardKey);
-    if (saved && saved.mode === g.mode && Array.isArray(saved.cells)) { P.cells = saved.cells; P.marked = saved.marked | 0; }
-    else { P.cells = makeCard(g.mode); P.marked = 1 << 12; saveCard(); }
+    if (saved && saved.mode === modeOf(g) && Array.isArray(saved.cells)) { P.cells = saved.cells; P.marked = saved.marked | 0; }
+    else { P.cells = makeCard(modeOf(g)); P.marked = P.cells[2][2] === 0 ? 1 << 12 : 0; saveCard(); }
+    P.autoClaimed = null;
   }
-  const saveCard = () => store.set(P.cardKey, { mode: P.game.mode, cells: P.cells, marked: P.marked });
+  const saveCard = () => store.set(P.cardKey, { mode: modeOf(P.game), cells: P.cells, marked: P.marked });
   const isMarked = (c, r) => !!(P.marked & (1 << (c * 5 + r)));
-  const pushPresence = () => P.room && P.room.presence({ role: "player", name: P.name.slice(0, 20), cells: P.cells, marked: P.marked, round: P.game.round, claim: P.claim, joinedAt: P.joinedAt });
+  const pushPresence = () => P.room && P.room.presence({ role: "player", name: P.name.slice(0, 20), cells: P.cells, marked: P.marked, round: P.game.round, claim: P.claim, claimStage: P.claimStage, joinedAt: P.joinedAt });
 
   function renderFull() {
     const list = playersFrom(P.peers);
@@ -1105,38 +1171,56 @@
   }
 
   function renderPlayer() {
-    const g = P.game, called = new Set(g.called);
+    const g = P.game, mode = modeOf(g), hard = mode === "hard", called = new Set(g.called);
     const isNew = g.called.length > P.lastCalledLen;
-    if (isNew && $("pAuto").checked) {
+    if (isNew && $("pAuto").checked && !hard) {
       g.called.slice(P.lastCalledLen).forEach(n => P.cells.forEach((col, c) => col.forEach((v, r) => { if (v === n) P.marked |= 1 << (c * 5 + r); })));
       saveCard();
     }
-    if (isNew) say(ballText(g.called.at(-1), g.mode), $("pVoice").checked);
+    if (isNew) say(ballText(g.called.at(-1), mode), $("pVoice").checked);
     renderBall("p", g, isNew);
     P.lastCalledLen = g.called.length;
+    $("pAutoRow").hidden = hard;
+    // A new prize stage means any earlier claim is finished.
+    if (P.claim && P.claimStage !== g.winners.length) P.claim = null;
 
-    const win = winShape(P.cells, isMarked, called, g.pattern);
-    const winSet = new Set((win || []).map(([c, r]) => c + "," + r));
-    let html = `<div class="card${win ? " winner" : ""}"><div class="card-top"><span>${esc(P.name)}’s card</span><span class="pattern">Win: ${PATTERN_NAMES[g.pattern]}</span></div><div class="card-grid">`;
-    LETTERS.forEach((L, c) => html += `<div class="card-head" style="--c:${COLORS[c]}">${L}</div>`);
+    const stage = stageOf(g), check = cardCheck(P.cells, isMarked, called, g);
+    const winSet = new Set(hard ? [] : check.shape.map(([c, r]) => c + "," + r));
+    const toFill = ALL.flatMap(c => ALL.map(r => [c, r])).filter(([c, r]) => P.cells[c][r] !== 0);
+    const markedCount = toFill.filter(([c, r]) => isMarked(c, r)).length;
+    const info = mode === "easy" ? `Lines: ${Math.min(check.lines, 12)}` : hard ? `Marked ${markedCount}/${toFill.length}` : `Win: ${PATTERN_NAMES[g.pattern]}`;
+    $("pStage").textContent = stage ? `Next prize: ${stage.label}` : "All prizes won this round";
+
+    let html = `<div class="card${check.win && !hard ? " winner" : ""}"><div class="card-top"><span>${esc(P.name)}’s card</span><span class="pattern">${info}</span></div><div class="card-grid${hard ? " no-head" : ""}">`;
+    if (!hard) LETTERS.forEach((L, c) => html += `<div class="card-head${mode === "easy" && c < check.lines ? " crossed" : ""}" style="--c:${COLORS[c]}">${L}</div>`);
     for (let r = 0; r < 5; r++) for (let c = 0; c < 5; c++) {
       const n = P.cells[c][r], cls = ["cell"];
       if (n === 0) cls.push("free");
       if (isMarked(c, r)) cls.push("marked");
-      if (n && called.has(n)) cls.push("called");
+      if (n && called.has(n) && !hard) cls.push("called");
       if (winSet.has(c + "," + r)) cls.push("win");
       const inner = n === 0 ? `<span class="e">🎂</span><span class="t">FREE</span>`
-        : g.mode === "numbers" ? n : `<span class="e">${itemOf(n, g.mode).e}</span><span class="t">${itemOf(n, g.mode).t}</span>`;
-      html += `<div class="${cls.join(" ")}" data-c="${c}" data-r="${r}" ${n ? `role="button" tabindex="0" aria-pressed="${isMarked(c, r)}" aria-label="${esc(ballText(n, g.mode))}"` : ""}>${inner}</div>`;
+        : isParty(mode) ? `<span class="e">${itemOf(n).e}</span><span class="t">${itemOf(n).t}</span>` : n;
+      html += `<div class="${cls.join(" ")}" data-c="${c}" data-r="${r}" ${n ? `role="button" tabindex="0" aria-pressed="${isMarked(c, r)}" aria-label="${esc(ballText(n, mode))}"` : ""}>${inner}</div>`;
     }
     $("pCardWrap").innerHTML = html + "</div></div>";
 
+    // Hard: a full card is sent to the host for checking straight away (once per set of marks).
+    const full = markedCount === toFill.length;
+    if (hard && stage && full && P.autoClaimed !== P.marked && !P.claim) {
+      P.autoClaimed = P.marked; P.claim = Date.now(); P.claimStage = g.winners.length;
+      toast("Card full! Sent to the host to check.");
+    }
     const btn = $("pParva");
     // A claim the host hasn't answered within 20s can be sent again.
     const claimed = !!P.claim && Date.now() - P.claim < 20000;
-    btn.disabled = !win || claimed;
-    btn.className = "parva-btn" + (claimed ? " sent" : win ? " ready" : "");
-    btn.textContent = claimed ? "Sent! Waiting for the host…" : win ? "Shout PARVA! 🎉" : "PARVA!";
+    const ready = !!stage && (hard ? full : check.win);
+    btn.disabled = !ready || claimed;
+    btn.className = "parva-btn" + (claimed ? " sent" : ready ? " ready" : "");
+    btn.textContent = !stage ? "All prizes won! 🎉"
+      : claimed ? "Sent! The host is checking…"
+      : ready ? (hard ? "Check my card! 🎉" : `Claim ${stage.label}! 🎉`)
+      : hard ? "Fill every square" : "PARVA!";
     pushPresence();
     renderFull();
     playerModal(g);
@@ -1162,9 +1246,9 @@
     P.cells.forEach((col, c) => col.forEach((v, r) => { if (called.has(v)) P.marked |= 1 << (c * 5 + r); }));
     saveCard();
   }
-  $("pAuto").onchange = () => { if ($("pAuto").checked) { markAllCalled(); renderPlayer(); } };
+  $("pAuto").onchange = () => { if ($("pAuto").checked && modeOf(P.game) !== "hard") { markAllCalled(); renderPlayer(); } };
   $("pParva").onclick = () => {
-    P.claim = Date.now(); pushPresence(); renderPlayer();
+    P.claim = Date.now(); P.claimStage = P.game.winners.length; pushPresence(); renderPlayer();
     if (!room) toast("Shout it out loud so the host hears you!");
   };
   const leavePlayer = () => {
@@ -1188,8 +1272,8 @@
       const me = !!mine && w.peer === mine.peer;
       celebrate(); if (me) playSong();
       openModal({
-        kicker: me ? "You did it" : "We have a winner", title: me ? "YOU WON! 🎉" : "PARVA! 🎉", big: true,
-        who: `${w.name} got it after ${g.called.length} balls!`, text: w.prize, key: "w" + w.at,
+        kicker: `${w.stage ? w.stage + " · " : ""}${me ? "you did it" : "we have a winner"}`, title: me ? "YOU WON! 🎉" : "PARVA! 🎉", big: true,
+        who: `${w.name} got it after ${g.called.length} balls!${stageOf(g) ? ` Next prize: ${stageOf(g).label}.` : ""}`, text: w.prize, key: "w" + w.at,
         actions: [["Yay!", "primary", closeModal]],
       });
     }
@@ -1197,21 +1281,25 @@
 
   // ================= shared rendering =================
   function buildBoard(el, mode) {
-    const size = colSize(mode);
-    el.className = "board" + (mode === "numbers" ? "" : " party");
-    el.style.gridTemplateColumns = `22px repeat(${size}, minmax(0, 1fr))`;
+    if (!isParty(mode)) {
+      const total = totalBalls(mode);
+      el.className = "board";
+      el.style.gridTemplateColumns = `repeat(${mode === "easy" ? 13 : 15}, minmax(0, 1fr))`;
+      el.innerHTML = Array.from({ length: total }, (_, i) => `<div class="board-cell" data-n="${i + 1}" style="--c:${ballColor(i + 1, mode)}">${i + 1}</div>`).join("");
+      return;
+    }
+    el.className = "board party";
+    el.style.gridTemplateColumns = "22px repeat(9, minmax(0, 1fr))";
     el.innerHTML = LETTERS.map((L, c) => `<div class="letter" style="--c:${COLORS[c]}">${L}</div>` +
-      Array.from({ length: size }, (_, k) => { const n = c * size + k + 1; return `<div class="board-cell" data-n="${n}" style="--c:${COLORS[c]}" title="${esc(ballText(n, mode))}">${mode === "numbers" ? n : itemOf(n, mode).e}</div>`; }).join("")).join("");
+      Array.from({ length: 9 }, (_, k) => { const n = c * 9 + k + 1; return `<div class="board-cell" data-n="${n}" style="--c:${COLORS[c]}" title="${esc(ballText(n, mode))}">${itemOf(n).e}</div>`; }).join("")).join("");
   }
 
   function renderBall(prefix, g, animate) {
-    const last = g.called.at(-1), ball = $(prefix + "Ball");
+    const mode = modeOf(g), last = g.called.at(-1), ball = $(prefix + "Ball");
     if (last) {
-      ball.style.setProperty("--c", COLORS[colOf(last, g.mode)]);
-      $(prefix + "BallInner").innerHTML = g.mode === "numbers"
-        ? `<span class="l">${LETTERS[colOf(last, g.mode)]}</span><span class="num">${last}</span>`
-        : `<span class="emo">${itemOf(last, g.mode).e}</span>`;
-      $(prefix + "BallLabel").textContent = g.mode === "numbers" ? `${LETTERS[colOf(last, g.mode)]} – ${last}` : itemOf(last, g.mode).t;
+      ball.style.setProperty("--c", ballColor(last, mode));
+      $(prefix + "BallInner").innerHTML = isParty(mode) ? `<span class="emo">${itemOf(last).e}</span>` : `<span class="num">${last}</span>`;
+      $(prefix + "BallLabel").textContent = isParty(mode) ? itemOf(last).t : `Number ${last}`;
     } else {
       ball.style.removeProperty("--c");
       $(prefix + "BallInner").innerHTML = `<span class="emo">🎈</span>`;
@@ -1219,8 +1307,10 @@
     }
     if (animate && last) { ball.classList.remove("pop"); void ball.offsetWidth; ball.classList.add("pop"); }
     $(prefix + "Called").textContent = g.called.length;
-    $(prefix + "Recent").innerHTML = g.called.slice(-6, -1).reverse()
-      .map(n => `<div class="mini" style="--c:${COLORS[colOf(n, g.mode)]}" title="${esc(ballText(n, g.mode))}">${ballShort(n, g.mode)}</div>`).join("");
+    // Hard level: players get no list of earlier balls, they have to keep up.
+    const showRecent = !(prefix === "p" && mode === "hard");
+    $(prefix + "Recent").innerHTML = showRecent ? g.called.slice(-6, -1).reverse()
+      .map(n => `<div class="mini" style="--c:${ballColor(n, mode)}" title="${esc(ballText(n, mode))}">${ballShort(n, mode)}</div>`).join("") : "";
     renderCountdown(prefix, g);
   }
 
@@ -1233,7 +1323,7 @@
       pct = 100 - Math.min(100, left / (g.interval * 1000) * 100);
       paused = false;
     } else if (g.challenge) text = "Challenge time! 🎁";
-    else if (g.winners.length && g.status !== "live") text = `🏆 ${g.winners.at(-1).name} won!`;
+    else if (g.winners.length && g.status !== "live") text = `🏆 ${g.winners.at(-1).name} won${g.winners.at(-1).stage ? " " + g.winners.at(-1).stage : ""}!`;
     else if (g.status === "lobby") text = prefix === "h" ? "Press Start when everyone’s in" : "Waiting for the host to start";
     else text = "Paused by the host";
     if (el.textContent !== text) el.textContent = text;
