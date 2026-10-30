@@ -3,7 +3,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@500;700;800&display=swap" rel="stylesheet">
 <style>
-  /* Layout: party-night stage. Caller column on the left, cards on the right, stacks on phones. */
+  /* Layout: party-night stage. Home → host console (caller + players) or player view (ball + countdown, card below). */
   :root {
     color-scheme: dark;
     --bg: #160f2e;
@@ -15,6 +15,8 @@
     --muted: #b6abd9;
     --accent: #ff4f8b;
     --gold: #ffd166;
+    --ok: #06d6a0;
+    --bad: #ff6b6b;
     --mark-ink: #2a1a00;
     --p: #ff6b6b; --a: #ffb703; --r: #06d6a0; --v: #4cc9f0; --a2: #c77dff;
     --display: "Lilita One", "Arial Rounded MT Bold", system-ui, sans-serif;
@@ -40,20 +42,14 @@
   .title h1 { margin: 0; font: 400 clamp(26px, 5vw, 38px)/1.05 var(--display); letter-spacing: .5px; text-wrap: balance; }
   .title h1 .name { color: var(--gold); }
   .title p { margin: 2px 0 0; color: var(--muted); font-weight: 700; font-size: 14px; }
-  .tabs { display: flex; background: var(--bg-2); border: 1px solid var(--line); border-radius: 999px; padding: 4px; gap: 4px; }
-  .tabs button { border: 0; background: transparent; color: var(--muted); padding: 8px 14px; border-radius: 999px; font-size: 14px; }
-  .tabs button.active { background: var(--accent); color: #fff; }
+  .chip { display: inline-flex; align-items: center; gap: 8px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; font-weight: 800; font-size: 13px; color: var(--muted); }
+  .chip b { color: var(--ink); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .dot.live { background: var(--ok); box-shadow: 0 0 0 3px rgba(6, 214, 160, .25); }
 
-  .layout { display: grid; grid-template-columns: 390px minmax(0, 1fr); gap: 20px; align-items: start; }
-  @media (max-width: 920px) { .layout { grid-template-columns: minmax(0, 1fr); } }
-  body.player .caller { display: none; }
-  body.player .layout { grid-template-columns: minmax(0, 1fr); max-width: 560px; margin: 0 auto; }
-  body.player .host-only { display: none !important; }
-  body:not(.player) .player-only { display: none !important; }
-
-  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 22px; padding: 18px; box-shadow: var(--shadow); }
-  .caller { position: sticky; top: calc(14px + env(safe-area-inset-top, 0px)); }
-  @media (max-width: 920px) { .caller { position: static; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 22px; padding: 18px; box-shadow: var(--shadow); min-width: 0; }
+  .panel h2 { margin: 0 0 4px; font: 400 24px var(--display); }
+  .panel .sub { margin: 0 0 14px; color: var(--muted); font-weight: 700; font-size: 14px; }
 
   button {
     font: 800 15px var(--body); border: 1px solid var(--line); background: var(--cell); color: var(--ink);
@@ -62,41 +58,27 @@
   button:hover { filter: brightness(1.12); }
   button:active { transform: scale(.97); }
   button:disabled { opacity: .4; cursor: not-allowed; }
-  button:focus-visible, select:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+  button:focus-visible, select:focus-visible, input:focus-visible, .cell:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
   button.primary { background: linear-gradient(180deg, #ff6aa0, var(--accent)); color: #fff; border-color: transparent; box-shadow: 0 6px 18px rgba(255, 79, 139, .35); }
   button.gold { background: var(--gold); color: var(--mark-ink); border-color: transparent; }
-  button.on { background: var(--r); color: #04221a; border-color: transparent; }
-  button.danger { background: #ff6b6b; color: #fff; border-color: transparent; }
+  button.on { background: var(--ok); color: #04221a; border-color: transparent; }
+  button.danger { background: var(--bad); color: #fff; border-color: transparent; }
+  button.big { font: 400 21px var(--display); letter-spacing: .5px; padding: 14px; width: 100%; }
+  button.small { padding: 7px 11px; font-size: 13px; border-radius: 11px; }
 
-  .current { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; }
-  .ball {
-    width: 118px; height: 118px; border-radius: 50%; flex: none; display: grid; place-items: center;
-    background: radial-gradient(circle at 32% 28%, rgba(255,255,255,.55), transparent 42%), var(--c, #5a4d8c);
-    box-shadow: inset 0 -8px 14px rgba(0,0,0,.25), 0 8px 22px rgba(0,0,0,.35);
+  input[type=text] {
+    font: 800 16px var(--body); color: var(--ink); background: var(--bg-2); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; width: 100%;
   }
-  .ball .inner { background: #fff; color: #1d1338; width: 78px; height: 78px; border-radius: 50%; display: grid; place-content: center; text-align: center; line-height: 1; }
-  .ball .l { font: 400 16px var(--display); color: #6b5fa0; }
-  .ball .num { font: 400 32px var(--display); }
-  .ball .emo { font-size: 34px; }
-  .ball.pop { animation: pop .5s cubic-bezier(.2, 1.5, .4, 1); }
-  @keyframes pop { from { transform: scale(.4) rotate(-40deg); } to { transform: scale(1) rotate(0); } }
-  .current-info { min-width: 0; }
-  .ball-label { font: 400 22px var(--display); min-height: 28px; }
-  .count { font-size: 13px; color: var(--muted); font-weight: 700; font-variant-numeric: tabular-nums; }
-  .recent { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
-  .mini { min-width: 34px; height: 34px; padding: 0 6px; border-radius: 99px; display: grid; place-items: center; font: 400 13px var(--display); color: #1d1338; background: var(--c); }
-
-  .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .btns .wide { grid-column: 1 / -1; font: 400 21px var(--display); letter-spacing: .5px; padding: 14px; }
-  .progress { height: 5px; background: var(--line); border-radius: 5px; overflow: hidden; margin: 10px 0 4px; visibility: hidden; }
-  .progress.show { visibility: visible; }
-  .progress div { height: 100%; width: 0; background: linear-gradient(90deg, var(--gold), var(--accent)); }
-
-  .settings { margin-top: 8px; }
-  .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 14px; }
-  .row > label:first-child { color: var(--muted); font-weight: 700; }
-  .row input[type=range] { flex: 1; max-width: 150px; accent-color: var(--accent); }
+  input[type=text]::placeholder { color: var(--muted); font-weight: 700; }
+  input.code { font: 400 30px var(--display); letter-spacing: .35em; text-transform: uppercase; text-align: center; }
   select { font: 700 14px var(--body); padding: 8px 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--cell); color: var(--ink); max-width: 100%; }
+  .field { display: grid; gap: 6px; margin-bottom: 12px; }
+  .field > label { color: var(--muted); font-weight: 800; font-size: 13px; letter-spacing: .04em; text-transform: uppercase; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 0; border-top: 1px solid var(--line); font-size: 14px; }
+  .row > label:first-child, .row > span:first-child { color: var(--muted); font-weight: 700; }
+  .stepper { display: flex; align-items: center; gap: 6px; }
+  .stepper button { width: 36px; height: 36px; padding: 0; border-radius: 10px; }
+  .stepper output { min-width: 32px; text-align: center; font: 400 20px var(--display); font-variant-numeric: tabular-nums; }
   .switch { position: relative; width: 44px; height: 26px; flex: none; }
   .switch input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
   .switch span { position: absolute; inset: 0; background: var(--line); border-radius: 99px; pointer-events: none; transition: .2s; }
@@ -104,38 +86,93 @@
   .switch input:checked + span { background: var(--accent); }
   .switch input:checked + span::after { transform: translateX(18px); }
   .switch input:focus-visible + span { outline: 3px solid var(--gold); outline-offset: 2px; }
+  .note { font-size: 13px; color: var(--muted); margin: 10px 0 0; }
+  .err { color: var(--bad); font-weight: 800; font-size: 14px; min-height: 20px; margin: 6px 0 0; }
 
+  /* home */
+  .home { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 20px; max-width: 900px; margin: 10px auto 0; }
+  .home .panel { padding: 22px; }
+  .emoji-head { font-size: 40px; line-height: 1; margin-bottom: 8px; }
+  .banner { max-width: 900px; margin: 0 auto 16px; background: var(--bg-2); border: 1px dashed var(--line); color: var(--muted); border-radius: 16px; padding: 12px 16px; font-weight: 700; font-size: 14px; }
+
+  /* ball + countdown ring */
+  .current { display: flex; align-items: center; gap: 16px; }
+  .ring { --pct: 0; width: 132px; height: 132px; border-radius: 50%; flex: none; display: grid; place-items: center;
+    background: conic-gradient(var(--gold) calc(var(--pct) * 1%), rgba(255, 255, 255, .08) 0); }
+  .ball {
+    width: 116px; height: 116px; border-radius: 50%; display: grid; place-items: center;
+    background: radial-gradient(circle at 32% 28%, rgba(255,255,255,.55), transparent 42%), var(--c, #5a4d8c);
+    box-shadow: inset 0 -8px 14px rgba(0,0,0,.25), 0 8px 22px rgba(0,0,0,.35);
+  }
+  .ball .inner { background: #fff; color: #1d1338; width: 76px; height: 76px; border-radius: 50%; display: grid; place-content: center; text-align: center; line-height: 1; }
+  .ball .l { font: 400 16px var(--display); color: #6b5fa0; }
+  .ball .num { font: 400 32px var(--display); }
+  .ball .emo { font-size: 34px; }
+  .ball.pop { animation: pop .5s cubic-bezier(.2, 1.5, .4, 1); }
+  @keyframes pop { from { transform: scale(.4) rotate(-40deg); } to { transform: scale(1) rotate(0); } }
+  .current-info { min-width: 0; }
+  .ball-label { font: 400 24px/1.1 var(--display); }
+  .countdown { font-weight: 800; color: var(--gold); font-size: 15px; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .countdown.paused { color: var(--muted); }
+  .count { font-size: 13px; color: var(--muted); font-weight: 700; font-variant-numeric: tabular-nums; }
+  .recent { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .mini { min-width: 34px; height: 34px; padding: 0 6px; border-radius: 99px; display: grid; place-items: center; font: 400 13px var(--display); color: #1d1338; background: var(--c); }
+
+  /* host console */
+  .console { display: grid; grid-template-columns: 400px minmax(0, 1fr); gap: 20px; align-items: start; }
+  @media (max-width: 920px) { .console { grid-template-columns: minmax(0, 1fr); } }
+  .stack { display: grid; gap: 20px; min-width: 0; }
+  .join-code { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .join-code .code-big { font: 400 clamp(40px, 9vw, 56px)/1 var(--display); letter-spacing: .18em; color: var(--gold); }
+  .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; }
+  .btns .wide { grid-column: 1 / -1; }
   .board { display: grid; gap: 3px; margin-top: 14px; }
   .letter { display: grid; place-items: center; font: 400 15px var(--display); color: #1d1338; border-radius: 6px; background: var(--c); }
   .board-cell { aspect-ratio: 1; max-width: 100%; display: grid; place-items: center; font-size: clamp(8px, 2.4vw, 11px); font-weight: 800; border-radius: 5px; background: var(--cell); color: var(--muted); }
   .board.party .board-cell { font-size: clamp(14px, 4vw, 20px); filter: grayscale(1); opacity: .35; }
   .board-cell.hit { background: var(--c); color: #1d1338; filter: none !important; opacity: 1 !important; }
 
-  .section-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
-  .section-head h2 { margin: 0; font: 400 24px var(--display); }
-  .ctrls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-  .ctrls button { padding: 8px 12px; font-size: 14px; }
-  .automark { display: flex; align-items: center; gap: 10px; color: var(--muted); font-weight: 700; font-size: 14px; margin-bottom: 12px; }
+  .players { display: grid; gap: 8px; }
+  .player { display: flex; align-items: center; gap: 12px; background: var(--bg-2); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; min-width: 0; }
+  .player .av { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font: 400 16px var(--display); color: #1d1338; flex: none; }
+  .player .nm { font-weight: 800; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .player .prog { font-weight: 800; color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .player.extra { opacity: .5; }
+  .empty { color: var(--muted); font-weight: 700; padding: 14px; text-align: center; border: 1px dashed var(--line); border-radius: 14px; }
+  .claim { display: grid; gap: 10px; background: linear-gradient(135deg, rgba(255, 209, 102, .18), rgba(255, 79, 139, .18)); border: 1px solid var(--gold); border-radius: 16px; padding: 14px; }
+  .claim .who { font: 400 22px var(--display); }
+  .claim .verdict { font-weight: 800; }
+  .claim .verdict.ok { color: var(--ok); }
+  .claim .verdict.no { color: var(--bad); }
+  .claim .acts { display: flex; gap: 8px; flex-wrap: wrap; }
+  .winners { display: grid; gap: 6px; margin-top: 10px; }
+  .winners div { font-weight: 800; }
+  .winners span { color: var(--muted); font-weight: 700; }
 
-  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+  /* player view */
+  .player-view { max-width: 560px; margin: 0 auto; display: grid; gap: 16px; }
+  .status-line { display: flex; gap: 8px; flex-wrap: wrap; }
+  .lobby-wait { text-align: center; padding: 26px 18px; }
+  .lobby-wait .big { font: 400 30px/1.1 var(--display); margin: 6px 0; }
+  .parva-btn { font: 400 30px var(--display); letter-spacing: 2px; padding: 16px; width: 100%; border-radius: 18px; background: var(--cell); color: var(--muted); border: 2px dashed var(--line); }
+  .parva-btn.ready { background: linear-gradient(180deg, #ffe08a, var(--gold)); color: var(--mark-ink); border: 0; animation: pulse 1.1s ease-in-out infinite; }
+  .parva-btn.sent { background: var(--ok); color: #04221a; border: 0; }
+  @keyframes pulse { 50% { transform: scale(1.03); box-shadow: 0 0 30px rgba(255, 209, 102, .55); } }
+
+  /* bingo card */
   .card { background: var(--panel); border: 1px solid var(--line); border-radius: 22px; padding: 12px; box-shadow: var(--shadow); min-width: 0; }
   .card.winner { box-shadow: 0 0 0 3px var(--gold), 0 0 34px rgba(255, 209, 102, .35); }
-  .card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
-  .card-top input {
-    flex: 1; min-width: 0; font: 800 15px var(--body); color: var(--ink); background: transparent; border: 1px dashed transparent; border-radius: 8px; padding: 4px 6px;
-  }
-  .card-top input:hover { border-color: var(--line); }
-  .card-top input::placeholder { color: var(--muted); }
-  .tag { font: 400 15px var(--display); color: var(--gold); white-space: nowrap; }
+  .card-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 2px 4px 10px; font-weight: 800; }
+  .card-top .pattern { color: var(--muted); font-size: 13px; }
   .card-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; }
   .card-head { text-align: center; color: #1d1338; font: 400 22px var(--display); border-radius: 9px; padding: 2px 0; background: var(--c); }
   .cell {
     aspect-ratio: 1; max-width: 100%; border-radius: 12px; display: grid; place-items: center; align-content: center; text-align: center;
-    font: 400 21px var(--display); background: var(--cell); border: 1px solid var(--line); cursor: pointer; user-select: none; position: relative;
+    font: 400 24px var(--display); background: var(--cell); border: 1px solid var(--line); cursor: pointer; user-select: none; position: relative;
     transition: background .15s, transform .08s; padding: 2px; overflow: hidden;
   }
-  .cell .e { font-size: clamp(20px, 6vw, 26px); line-height: 1.1; }
-  .cell .t { font: 800 9px/1.1 var(--body); color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cell .e { font-size: clamp(22px, 7vw, 30px); line-height: 1.1; }
+  .cell .t { font: 800 10px/1.1 var(--body); color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .cell:active { transform: scale(.93); }
   .cell.marked { background: var(--gold); color: var(--mark-ink); border-color: transparent; }
   .cell.marked .t { color: #6b4a00; }
@@ -143,19 +180,18 @@
   .cell.free { background: linear-gradient(160deg, #ff7aa8, var(--accent)); color: #fff; border-color: transparent; cursor: default; }
   .cell.free .t { color: #fff; }
   .cell.free::after { display: none; }
-  .cell.called:not(.marked) { box-shadow: inset 0 0 0 2px var(--accent); }
-  .cell.win { background: var(--r); color: #04221a; }
+  .cell.called:not(.marked) { box-shadow: inset 0 0 0 3px var(--accent); }
+  .cell.win { background: var(--ok); color: #04221a; }
   .cell.win .t { color: #04221a; }
-  .hint { font-size: 13px; color: var(--muted); margin: 12px 0 0; }
 
-  /* party picker + win popups */
+  /* popups */
   .overlay { position: fixed; inset: 0; background: rgba(10, 4, 28, .72); display: grid; place-items: center; z-index: 20; padding: 16px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
   .modal { width: min(460px, 100%); background: var(--panel); border: 1px solid var(--line); border-radius: 26px; padding: 22px; text-align: center; box-shadow: var(--shadow); animation: rise .35s cubic-bezier(.2, 1.4, .4, 1); }
   @keyframes rise { from { transform: translateY(30px) scale(.95); opacity: .3; } to { transform: none; opacity: 1; } }
   .modal .kicker { font-weight: 800; letter-spacing: .12em; text-transform: uppercase; color: var(--gold); font-size: 12px; }
   .modal h3 { margin: 6px 0 4px; font: 400 clamp(32px, 9vw, 48px)/1.05 var(--display); }
   .modal h3.big { color: var(--gold); letter-spacing: 2px; }
-  .reel { margin: 14px 0 18px; padding: 18px 14px; min-height: 120px; display: grid; place-items: center; background: var(--bg-2); border-radius: 18px; border: 1px dashed var(--line); font: 800 19px/1.35 var(--body); text-wrap: balance; }
+  .reel { margin: 14px 0 18px; padding: 18px 14px; min-height: 110px; display: grid; place-items: center; background: var(--bg-2); border-radius: 18px; border: 1px dashed var(--line); font: 800 19px/1.35 var(--body); text-wrap: balance; }
   .reel.spinning { color: var(--muted); }
   .modal .who { color: var(--muted); font-weight: 700; margin: 0; }
   .modal .actions { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
@@ -178,134 +214,248 @@
       <div class="cake" aria-hidden="true">🎂</div>
       <div>
         <h1>Happy Birthday, <span class="name">Parva!</span></h1>
-        <p>Birthday Bingo · get a line and shout “PARVA!”</p>
+        <p>Birthday Bingo · get the pattern and shout “PARVA!”</p>
       </div>
     </div>
-    <div class="tabs" role="tablist" aria-label="Screen">
-      <button id="tabHost" class="active" role="tab">🎤 Host screen</button>
-      <button id="tabPlayer" role="tab">🃏 Just my card</button>
-    </div>
+    <div class="status-line" id="headerChips"></div>
   </header>
 
-  <div class="layout">
-    <section class="panel caller" aria-label="Ball caller">
-      <div class="current">
-        <div class="ball" id="ball"><div class="inner" id="ballInner"><span class="emo">🎈</span></div></div>
-        <div class="current-info">
-          <div class="ball-label" id="ballLabel">Ready to party</div>
-          <div class="count"><span id="called">0</span> of <span id="total">45</span> called</div>
-          <div class="recent" id="recent"></div>
+  <!-- HOME -->
+  <main id="viewHome">
+    <div class="banner" id="localBanner" hidden>Live sync isn’t available in this view, so the game only runs on this device. Open the page on claude.ai while signed in to play on everyone’s phones.</div>
+    <div class="home">
+      <section class="panel" id="hostCard" hidden>
+        <div class="emoji-head" aria-hidden="true">🎤</div>
+        <h2>Host the game</h2>
+        <p class="sub">You run the draws. Everyone else joins with a code.</p>
+        <div id="resumeBox" hidden style="margin-bottom:14px">
+          <button class="gold big" id="resumeBtn">Back to game</button>
         </div>
-      </div>
-
-      <div class="btns">
-        <button class="primary wide" id="draw">Pick a ball</button>
-        <button id="auto">▶ Auto pick</button>
-        <button id="undo">↶ Undo</button>
-        <button class="gold" id="challengeBtn">🎁 Party challenge</button>
-        <button id="newGame">🔄 New round</button>
-      </div>
-      <div class="progress" id="progress"><div></div></div>
-
-      <div class="settings">
+        <div class="row" style="border-top:0">
+          <span>Players</span>
+          <div class="stepper"><button id="plMinus" aria-label="Fewer players">−</button><output id="plCount">6</output><button id="plPlus" aria-label="More players">+</button></div>
+        </div>
         <div class="row">
-          <label for="mode">Ball type</label>
-          <select id="mode">
+          <label for="setMode">Ball type</label>
+          <select id="setMode">
             <option value="party">🎉 Party pictures (45)</option>
             <option value="numbers">🔢 Numbers (75)</option>
           </select>
         </div>
         <div class="row">
-          <label for="speed">Auto pick every <b id="speedVal">6</b>s</label>
-          <input type="range" id="speed" min="2" max="20" value="6">
+          <label for="setPattern">How to win</label>
+          <select id="setPattern">
+            <option value="line">Any line</option>
+            <option value="corners">Four corners</option>
+            <option value="x">Big X</option>
+            <option value="frame">Picture frame</option>
+            <option value="blackout">Full card</option>
+          </select>
         </div>
         <div class="row">
-          <label for="challengeEvery">Party challenge every</label>
-          <select id="challengeEvery">
+          <label for="setInterval">New ball every</label>
+          <select id="setInterval">
+            <option value="5">5 seconds</option>
+            <option value="8">8 seconds</option>
+            <option value="10" selected>10 seconds</option>
+            <option value="15">15 seconds</option>
+            <option value="20">20 seconds</option>
+            <option value="30">30 seconds</option>
+            <option value="45">45 seconds</option>
+            <option value="60">60 seconds</option>
+          </select>
+        </div>
+        <div class="row" style="margin-bottom:14px">
+          <label for="setChallenge">Party challenge every</label>
+          <select id="setChallenge">
             <option value="0">Off</option>
-            <option value="5">5 picks</option>
-            <option value="8" selected>8 picks</option>
-            <option value="10">10 picks</option>
-            <option value="15">15 picks</option>
+            <option value="5">5 balls</option>
+            <option value="8" selected>8 balls</option>
+            <option value="10">10 balls</option>
+            <option value="15">15 balls</option>
           </select>
         </div>
-        <div class="row">
-          <label for="stopAt">Auto stops after</label>
-          <select id="stopAt">
-            <option value="0">Never (until a win)</option>
-            <option value="10">10 picks</option>
-            <option value="20">20 picks</option>
-            <option value="30">30 picks</option>
-          </select>
-        </div>
-        <div class="row">
-          <label for="voice">Say each pick out loud</label>
-          <label class="switch"><input type="checkbox" id="voice" checked><span></span></label>
-        </div>
-        <div class="row">
-          <label for="sound">Birthday song on a win</label>
-          <label class="switch"><input type="checkbox" id="sound" checked><span></span></label>
-        </div>
+        <button class="primary big" id="createBtn">Create game</button>
+        <p class="err" id="hostErr"></p>
+      </section>
+
+      <section class="panel">
+        <div class="emoji-head" aria-hidden="true">🃏</div>
+        <h2>Join a game</h2>
+        <p class="sub">Type the code on the host’s screen.</p>
+        <form id="joinForm" autocomplete="off">
+          <div class="field">
+            <label for="joinCode">Game code</label>
+            <input type="text" class="code" id="joinCode" maxlength="4" placeholder="ABCD" inputmode="text" autocapitalize="characters" spellcheck="false">
+          </div>
+          <div class="field">
+            <label for="joinName">Your name</label>
+            <input type="text" id="joinName" maxlength="20" placeholder="e.g. Riya">
+          </div>
+          <button class="primary big" type="submit" id="joinBtn">Join game</button>
+          <p class="err" id="joinErr"></p>
+        </form>
+      </section>
+    </div>
+  </main>
+
+  <!-- HOST CONSOLE -->
+  <main id="viewHost" hidden>
+    <div class="console">
+      <div class="stack">
+        <section class="panel">
+          <div class="join-code">
+            <div>
+              <div class="count">Join code</div>
+              <div class="code-big" id="hCode">----</div>
+            </div>
+            <div style="text-align:right">
+              <div class="count"><span id="hPlayersNum">0</span> of <span id="hPlayersMax">6</span> players</div>
+              <div class="count">Round <span id="hRound">1</span></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="current">
+            <div class="ring" id="hRing"><div class="ball" id="hBall"><div class="inner" id="hBallInner"><span class="emo">🎈</span></div></div></div>
+            <div class="current-info">
+              <div class="ball-label" id="hBallLabel">Ready to party</div>
+              <div class="countdown paused" id="hCountdown">Press Start when everyone’s in</div>
+              <div class="count"><span id="hCalled">0</span> of <span id="hTotal">45</span> balls</div>
+              <div class="recent" id="hRecent"></div>
+            </div>
+          </div>
+          <div class="btns">
+            <button class="primary big wide" id="hStart">▶ Start auto draw</button>
+            <button id="hDraw">Draw one now</button>
+            <button id="hUndo">↶ Undo</button>
+            <button class="gold" id="hChallenge">🎁 Challenge</button>
+            <button id="hNewRound">🔄 New round</button>
+          </div>
+          <div class="settings" style="margin-top:10px">
+            <div class="row">
+              <label for="hInterval">New ball every</label>
+              <select id="hInterval">
+                <option value="3">3 seconds</option>
+                <option value="5">5 seconds</option>
+                <option value="8">8 seconds</option>
+                <option value="10">10 seconds</option>
+                <option value="15">15 seconds</option>
+                <option value="20">20 seconds</option>
+                <option value="30">30 seconds</option>
+                <option value="45">45 seconds</option>
+                <option value="60">60 seconds</option>
+              </select>
+            </div>
+            <div class="row">
+              <label for="hPattern">How to win</label>
+              <select id="hPattern">
+                <option value="line">Any line</option>
+                <option value="corners">Four corners</option>
+                <option value="x">Big X</option>
+                <option value="frame">Picture frame</option>
+                <option value="blackout">Full card</option>
+              </select>
+            </div>
+            <div class="row">
+              <label for="hChallengeEvery">Party challenge every</label>
+              <select id="hChallengeEvery">
+                <option value="0">Off</option>
+                <option value="5">5 balls</option>
+                <option value="8">8 balls</option>
+                <option value="10">10 balls</option>
+                <option value="15">15 balls</option>
+              </select>
+            </div>
+            <div class="row">
+              <label for="hVoice">Say each ball out loud</label>
+              <label class="switch"><input type="checkbox" id="hVoice" checked><span></span></label>
+            </div>
+          </div>
+          <div class="board party" id="hBoard"></div>
+        </section>
       </div>
 
-      <div class="board party" id="board"></div>
-    </section>
+      <div class="stack">
+        <section class="panel" id="hClaims" hidden></section>
+        <section class="panel">
+          <h2>Players</h2>
+          <p class="sub" id="hPlayersSub">Waiting for friends to join with the code.</p>
+          <div class="players" id="hPlayers"></div>
+          <div class="winners" id="hWinners"></div>
+        </section>
+        <section class="panel">
+          <h2>How to join</h2>
+          <p class="sub" style="margin:0">Everyone opens this same page on their phone, taps <b>Join a game</b>, types the code <b id="hCode2">----</b> and their name. Their card shows up under the ball with a countdown to the next one.</p>
+          <div class="row" style="margin-top:12px">
+            <span>Leave the host console</span>
+            <button class="small" id="hLeave">Back to start</button>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
 
-    <section aria-label="Bingo cards">
-      <div class="section-head">
-        <h2><span class="host-only">Player cards</span><span class="player-only">My card</span></h2>
-        <div class="ctrls">
-          <select id="numCards" class="host-only" aria-label="Number of cards">
-            <option value="1">1 card</option>
-            <option value="2">2 cards</option>
-            <option value="3">3 cards</option>
-            <option value="4" selected>4 cards</option>
-            <option value="6">6 cards</option>
-            <option value="8">8 cards</option>
-          </select>
-          <select id="pattern" aria-label="How to win">
-            <option value="line">Win: any line</option>
-            <option value="corners">Win: four corners</option>
-            <option value="x">Win: big X</option>
-            <option value="frame">Win: picture frame</option>
-            <option value="blackout">Win: full card</option>
-          </select>
-          <button id="newCards">🎲 New cards</button>
-          <button id="playerChallenge" class="gold player-only">🎁 Challenge</button>
+  <!-- PLAYER VIEW -->
+  <main id="viewPlayer" hidden>
+    <div class="player-view">
+      <section class="panel" id="pBallPanel">
+        <div class="current">
+          <div class="ring" id="pRing"><div class="ball" id="pBall"><div class="inner" id="pBallInner"><span class="emo">🎈</span></div></div></div>
+          <div class="current-info">
+            <div class="ball-label" id="pBallLabel">Waiting…</div>
+            <div class="countdown paused" id="pCountdown">The host hasn’t started yet</div>
+            <div class="count">Balls picked: <span id="pCalled">0</span></div>
+            <div class="recent" id="pRecent"></div>
+          </div>
         </div>
-      </div>
-      <div class="automark host-only">
-        <label class="switch"><input type="checkbox" id="autoMark" checked><span></span></label>
-        <label for="autoMark">Mark picked balls on the cards for us</label>
-      </div>
-      <div class="cards" id="cards"></div>
-      <p class="hint host-only">Type a friend’s name at the top of each card. Tap a square to mark or unmark it. A pink ring means that ball was picked but the square isn’t marked yet.</p>
-      <p class="hint player-only">Listen to the host and tap squares as they get picked. Get the winning pattern and shout “PARVA!”</p>
-    </section>
-  </div>
+      </section>
+
+      <section class="panel lobby-wait" id="pFull" hidden>
+        <div class="emoji-head" aria-hidden="true">😅</div>
+        <div class="big">This game is full</div>
+        <p class="sub">The host set a player limit. Ask them to add a spot, then join again.</p>
+        <button id="pFullBack">Back to start</button>
+      </section>
+
+      <div id="pCardWrap"></div>
+      <button class="parva-btn" id="pParva" disabled>PARVA!</button>
+      <section class="panel">
+        <div class="row" style="border-top:0">
+          <label for="pAuto">Mark my card for me</label>
+          <label class="switch"><input type="checkbox" id="pAuto" checked><span></span></label>
+        </div>
+        <div class="row">
+          <label for="pVoice">Say each ball out loud</label>
+          <label class="switch"><input type="checkbox" id="pVoice"><span></span></label>
+        </div>
+        <div class="row">
+          <span>Leave this game</span>
+          <button class="small" id="pLeave">Leave</button>
+        </div>
+      </section>
+    </div>
+  </main>
 </div>
 
 <div class="overlay" id="overlay" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mTitle">
-    <div class="kicker" id="mKicker">Party challenge</div>
-    <h3 id="mTitle">🎁</h3>
+    <div class="kicker" id="mKicker"></div>
+    <h3 id="mTitle"></h3>
     <p class="who" id="mWho"></p>
     <div class="reel" id="mReel"></div>
-    <div class="actions">
-      <button id="mAgain">🔀 Pick another</button>
-      <button class="primary" id="mClose">Keep playing</button>
-    </div>
+    <div class="actions" id="mActions"></div>
   </div>
 </div>
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status"></div>
 <canvas id="confetti" aria-hidden="true"></canvas>
 
 <script>
 (() => {
+  // ================= content =================
   const LETTERS = ["P", "A", "R", "V", "A"];
   const COLORS = ["var(--p)", "var(--a)", "var(--r)", "var(--v)", "var(--a2)"];
-
-  // 9 party pictures per column, 45 in all
   const PARTY = [
     ["🎈 Balloons", "🎉 Popper", "🎊 Confetti", "🥳 Party hat", "🪅 Piñata", "🎁 Present", "🎀 Bow", "🕯️ Candle", "🎂 Cake"],
     ["🍕 Pizza", "🧁 Cupcake", "🍦 Ice cream", "🍫 Chocolate", "🍩 Donut", "🥤 Soda", "🍿 Popcorn", "🍬 Candy", "🍟 Fries"],
@@ -313,7 +463,6 @@
     ["⭐ Wish", "🍀 Luck", "💖 Love", "👑 Crown", "🏆 Trophy", "🌈 Rainbow", "🦄 Unicorn", "💫 Sparkle", "🤝 Friends"],
     ["🌙 Late night", "🎆 Fireworks", "🪩 Disco", "🚗 Road trip", "🏖️ Beach", "🎬 Movie", "☕ Coffee", "🤳 Selfie", "😂 LOL"],
   ].map(col => col.map(s => { const i = s.indexOf(" "); return { e: s.slice(0, i), t: s.slice(i + 1) }; }));
-
   const CHALLENGES = [
     "Tell everyone your favourite memory with Parva.",
     "Sing Happy Birthday to Parva in your best opera voice.",
@@ -337,7 +486,6 @@
     "Parva chooses: you sing or you dance for 15 seconds.",
     "Give Parva a made-up award, like “Best Snack Finder”.",
     "Everyone sings the first line of Happy Birthday together. Loud!",
-    "Lucky you: mark any one square on your card for free.",
     "Swap seats with the person on your left.",
     "Name three things Parva is great at in 10 seconds.",
     "Act out Parva’s morning routine. No words allowed.",
@@ -354,409 +502,697 @@
     "Winner chooses who does the next challenge 👉",
     "Winner and Parva take a victory selfie 🤳",
   ];
-
-  const $ = id => document.getElementById(id);
-  let mode = "party", COL = 9;
-  let pool = [], called = [], cards = [], timer = null, tick = null, autoStart = 0, wonCards = new Set();
-  let resumeAuto = false;
-
-  const colOf = n => Math.floor((n - 1) / COL);
-  const itemOf = n => mode === "party" ? PARTY[colOf(n)][(n - 1) % COL] : null;
-  const labelOf = n => mode === "party" ? `${itemOf(n).e} ${itemOf(n).t}` : `${LETTERS[colOf(n)]} ${n}`;
-  const shuffle = a => {
-    for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
-    return a;
-  };
-  const pickFrom = (list, not) => { let x; do { x = list[Math.floor(Math.random() * list.length)]; } while (list.length > 1 && x === not); return x; };
-  const esc = s => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-  const isPlayer = () => document.body.classList.contains("player");
-
-  function makeCard(name = "") {
-    // cells[col][row]; column c holds numbers from c*COL+1 .. c*COL+COL
-    const cells = LETTERS.map((_, c) => shuffle(Array.from({ length: COL }, (_, k) => c * COL + k + 1)).slice(0, 5));
-    cells[2][2] = 0; // free square
-    return { name, cells, marked: cells.map(col => col.map(n => n === 0)) };
-  }
-
-  // ---------- caller ----------
-  function buildBoard() {
-    const b = $("board");
-    b.className = "board" + (mode === "party" ? " party" : "");
-    b.style.gridTemplateColumns = `22px repeat(${COL}, minmax(0, 1fr))`;
-    let html = "";
-    LETTERS.forEach((L, c) => {
-      html += `<div class="letter" style="--c:${COLORS[c]}">${L}</div>`;
-      for (let k = 1; k <= COL; k++) {
-        const n = c * COL + k;
-        html += `<div class="board-cell" id="bc${n}" style="--c:${COLORS[c]}" title="${esc(labelOf(n))}">${mode === "party" ? itemOf(n).e : n}</div>`;
-      }
-    });
-    b.innerHTML = html;
-    $("total").textContent = COL * 5;
-  }
-
-  function renderCaller(animate) {
-    const last = called[called.length - 1];
-    const ball = $("ball");
-    if (last) {
-      ball.style.setProperty("--c", COLORS[colOf(last)]);
-      $("ballInner").innerHTML = mode === "party"
-        ? `<span class="emo">${itemOf(last).e}</span>`
-        : `<span class="l">${LETTERS[colOf(last)]}</span><span class="num">${last}</span>`;
-      $("ballLabel").textContent = mode === "party" ? itemOf(last).t : `${LETTERS[colOf(last)]} – ${last}`;
-    } else {
-      ball.style.removeProperty("--c");
-      $("ballInner").innerHTML = `<span class="emo">🎈</span>`;
-      $("ballLabel").textContent = "Ready to party";
-    }
-    if (animate) { ball.classList.remove("pop"); void ball.offsetWidth; ball.classList.add("pop"); }
-    $("called").textContent = called.length;
-    $("recent").innerHTML = called.slice(-6, -1).reverse().map(n =>
-      `<div class="mini" style="--c:${COLORS[colOf(n)]}" title="${esc(labelOf(n))}">${mode === "party" ? itemOf(n).e : LETTERS[colOf(n)] + n}</div>`).join("");
-    document.querySelectorAll(".board-cell.hit").forEach(el => el.classList.remove("hit"));
-    called.forEach(n => $("bc" + n).classList.add("hit"));
-    $("draw").disabled = pool.length === 0;
-    $("undo").disabled = called.length === 0;
-  }
-
-  function say(text) {
-    if (!$("voice").checked || !("speechSynthesis" in window)) return;
-    try {
-      speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(text);
-      u.rate = 0.95; u.pitch = 1.1;
-      speechSynthesis.speak(u);
-    } catch (e) {}
-  }
-
-  function draw() {
-    if (!pool.length) { stopAuto(); toast("Every ball has been picked!"); return; }
-    const n = pool.pop();
-    called.push(n);
-    say(mode === "party" ? itemOf(n).t : `${LETTERS[colOf(n)]}, ${n}`);
-    if ($("autoMark").checked) markEverywhere(n);
-    renderCaller(true);
-    renderCards();
-    if (checkWins()) return;
-    const every = +$("challengeEvery").value;
-    if (every && called.length % every === 0) {
-      resumeAuto = !!timer;
-      stopAuto();
-      setTimeout(() => openChallenge(`Pick #${called.length}! Challenge time`), 900);
-      return;
-    }
-    const limit = +$("stopAt").value;
-    if (timer && limit && called.length >= limit) { stopAuto(); toast(`Auto pick paused after ${limit} picks`); }
-  }
-
-  function undo() {
-    const n = called.pop();
-    if (!n) return;
-    pool.push(n);
-    cards.forEach(card => card.cells.forEach((col, c) => col.forEach((v, r) => { if (v === n) card.marked[c][r] = false; })));
-    syncWinners();
-    renderCaller(false); renderCards();
-  }
-
-  function startAuto(immediate = true) {
-    if (!pool.length) return;
-    $("auto").textContent = "⏸ Pause"; $("auto").classList.add("on");
-    $("progress").classList.add("show");
-    const ms = +$("speed").value * 1000;
-    autoStart = Date.now();
-    timer = setInterval(() => { autoStart = Date.now(); draw(); }, ms);
-    tick = setInterval(() => {
-      $("progress").firstElementChild.style.width = Math.min(100, (Date.now() - autoStart) / ms * 100) + "%";
-    }, 50);
-    if (immediate) draw();
-  }
-
-  function stopAuto() {
-    clearInterval(timer); clearInterval(tick); timer = tick = null;
-    $("auto").textContent = "▶ Auto pick"; $("auto").classList.remove("on");
-    $("progress").classList.remove("show");
-    $("progress").firstElementChild.style.width = "0";
-  }
-
-  // ---------- cards ----------
-  function markEverywhere(n) {
-    cards.forEach(card => card.cells.forEach((col, c) => col.forEach((v, r) => { if (v === n) card.marked[c][r] = true; })));
-  }
-
+  const PATTERN_NAMES = { line: "Any line", corners: "Four corners", x: "Big X", frame: "Picture frame", blackout: "Full card" };
   const ALL = [0, 1, 2, 3, 4];
   const PATTERNS = {
-    line: () => [
-      ...ALL.map(i => ALL.map(r => [i, r])),
-      ...ALL.map(i => ALL.map(c => [c, i])),
-      ALL.map(i => [i, i]),
-      ALL.map(i => [i, 4 - i]),
-    ],
-    corners: () => [[[0, 0], [4, 0], [0, 4], [4, 4]]],
-    x: () => [ALL.flatMap(i => i === 2 ? [[2, 2]] : [[i, i], [i, 4 - i]])],
-    frame: () => [ALL.flatMap(c => ALL.filter(r => c % 4 === 0 || r % 4 === 0).map(r => [c, r]))],
-    blackout: () => [ALL.flatMap(c => ALL.map(r => [c, r]))],
+    line: [...ALL.map(i => ALL.map(r => [i, r])), ...ALL.map(i => ALL.map(c => [c, i])), ALL.map(i => [i, i]), ALL.map(i => [i, 4 - i])],
+    corners: [[[0, 0], [4, 0], [0, 4], [4, 4]]],
+    x: [ALL.flatMap(i => i === 2 ? [[2, 2]] : [[i, i], [i, 4 - i]])],
+    frame: [ALL.flatMap(c => ALL.filter(r => c % 4 === 0 || r % 4 === 0).map(r => [c, r]))],
+    blackout: [ALL.flatMap(c => ALL.map(r => [c, r]))],
   };
 
-  // Winning squares for a card, or null. On the host screen a square only counts if its ball was picked.
-  function winCells(card) {
-    const ok = (c, r) => card.marked[c][r] && (isPlayer() || card.cells[c][r] === 0 || called.includes(card.cells[c][r]));
-    for (const shape of PATTERNS[$("pattern").value]()) if (shape.every(([c, r]) => ok(c, r))) return shape;
-    return null;
+  // ================= helpers =================
+  const $ = id => document.getElementById(id);
+  const colSize = mode => mode === "numbers" ? 15 : 9;
+  const colOf = (n, mode) => Math.floor((n - 1) / colSize(mode));
+  const itemOf = (n, mode) => PARTY[colOf(n, mode)][(n - 1) % 9];
+  const ballText = (n, mode) => mode === "numbers" ? `${LETTERS[colOf(n, mode)]} ${n}` : itemOf(n, mode).t;
+  const ballShort = (n, mode) => mode === "numbers" ? LETTERS[colOf(n, mode)] + n : itemOf(n, mode).e;
+  const rand = n => Math.floor(Math.random() * n);
+  const pickFrom = (list, not) => { let x; do { x = list[rand(list.length)]; } while (list.length > 1 && x === not); return x; };
+  const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = rand(i + 1); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const store = {
+    get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} },
+    del(k) { try { localStorage.removeItem(k); } catch (e) {} },
+  };
+  const CODE_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+  const newCode = () => Array.from({ length: 4 }, () => CODE_CHARS[rand(CODE_CHARS.length)]).join("");
+
+  function makeCard(mode) {
+    const size = colSize(mode);
+    const cols = LETTERS.map((_, c) => shuffle(Array.from({ length: size }, (_, k) => c * size + k + 1)).slice(0, 5));
+    cols[2][2] = 0;
+    return cols; // cols[c][r]
+  }
+  // cells: cols[c][r]; marked: function (c, r) → bool; called: Set
+  function winShape(cells, isMarked, called, pattern) {
+    const ok = (c, r) => cells[c][r] === 0 || (isMarked(c, r) && called.has(cells[c][r]));
+    return PATTERNS[pattern].find(shape => shape.every(([c, r]) => ok(c, r))) || null;
+  }
+  function bestProgress(cells, isMarked, called, pattern) {
+    let best = 0, len = 0;
+    for (const shape of PATTERNS[pattern]) {
+      const got = shape.filter(([c, r]) => cells[c][r] === 0 || (isMarked(c, r) && called.has(cells[c][r]))).length;
+      if (got / shape.length >= best / (len || 1)) { best = got; len = shape.length; }
+    }
+    return [best, len];
   }
 
-  const cardName = (card, i) => card.name.trim() || `Card ${i + 1}`;
+  function say(text, on) {
+    if (!on || !("speechSynthesis" in window)) return;
+    try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(text); u.rate = .95; u.pitch = 1.1; speechSynthesis.speak(u); } catch (e) {}
+  }
+  let toastT;
+  function toast(msg) {
+    const t = $("toast"); t.textContent = msg; t.classList.add("show");
+    clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 3200);
+  }
+  function show(view) {
+    ["viewHome", "viewHost", "viewPlayer"].forEach(v => $(v).hidden = v !== view);
+    scrollTo(0, 0);
+  }
 
-  function renderCards() {
-    const focused = document.activeElement && document.activeElement.dataset.name;
-    $("cards").innerHTML = cards.map((card, idx) => {
-      const win = winCells(card);
-      const winSet = new Set((win || []).map(([c, r]) => c + "," + r));
-      let html = `<div class="card${win ? " winner" : ""}"><div class="card-top">
-        <input id="name${idx}" data-name="${idx}" value="${esc(card.name)}" placeholder="✏️ ${isPlayer() ? "Your name" : "Friend’s name"}" aria-label="Name for card ${idx + 1}" maxlength="24">
-        ${win ? '<span class="tag">PARVA! 🎉</span>' : ""}</div><div class="card-grid">`;
-      LETTERS.forEach((L, c) => html += `<div class="card-head" style="--c:${COLORS[c]}">${L}</div>`);
-      for (let r = 0; r < 5; r++) for (let c = 0; c < 5; c++) {
-        const n = card.cells[c][r];
-        const cls = ["cell"];
-        if (n === 0) cls.push("free");
-        if (card.marked[c][r]) cls.push("marked");
-        if (n && called.includes(n) && !isPlayer()) cls.push("called");
-        if (winSet.has(c + "," + r)) cls.push("win");
-        let inner;
-        if (n === 0) inner = `<span class="e">🎂</span><span class="t">FREE</span>`;
-        else if (mode === "party") inner = `<span class="e">${itemOf(n).e}</span><span class="t">${itemOf(n).t}</span>`;
-        else inner = n;
-        html += `<div class="${cls.join(" ")}" data-card="${idx}" data-c="${c}" data-r="${r}" role="button" tabindex="0" aria-pressed="${card.marked[c][r]}" aria-label="${n ? esc(labelOf(n)) : "Free square"}">${inner}</div>`;
+  // ================= sync layer =================
+  // Live: claude db (game doc, host-only writes) + claude room (who joined, PARVA claims).
+  // Local fallback: localStorage + BroadcastChannel, so tabs on one device still play together.
+  let db = null, room = null, user = null, canHost = true, live = false;
+
+  const local = (() => {
+    const bc = "BroadcastChannel" in window ? new BroadcastChannel("parva-bingo") : null;
+    const tab = Math.random().toString(36).slice(2, 10);
+    const docSubs = new Map(); // code -> Set(cb)
+    const rooms = new Map();   // code -> {me, peers: Map, subs: Set}
+    const emitPeers = r => { const list = [...r.peers.values()]; r.subs.forEach(cb => cb(list)); };
+    bc && bc.addEventListener("message", ({ data: m }) => {
+      if (m.t === "doc") (docSubs.get(m.code) || []).forEach(cb => cb(m.data));
+      const r = rooms.get(m.code);
+      if (!r) return;
+      if (m.t === "pres") { r.peers.set(m.tab, { peer: m.tab, isMe: false, presence: m.p, seen: Date.now() }); emitPeers(r); }
+      if (m.t === "hello") bc.postMessage({ t: "pres", code: m.code, tab, p: r.me });
+      if (m.t === "bye") { r.peers.delete(m.tab); emitPeers(r); }
+    });
+    setInterval(() => rooms.forEach((r, code) => {
+      bc && bc.postMessage({ t: "pres", code, tab, p: r.me });
+      let changed = false;
+      r.peers.forEach((p, k) => { if (!p.isMe && Date.now() - p.seen > 8000) { r.peers.delete(k); changed = true; } });
+      if (changed) emitPeers(r);
+    }), 3000);
+    return {
+      watch(code, cb) {
+        if (!docSubs.has(code)) docSubs.set(code, new Set());
+        docSubs.get(code).add(cb);
+        setTimeout(() => cb(store.get("pb:doc:" + code)), 0);
+        return () => docSubs.get(code).delete(cb);
+      },
+      async get(code) { return store.get("pb:doc:" + code); },
+      async set(code, data) {
+        store.set("pb:doc:" + code, data);
+        (docSubs.get(code) || []).forEach(cb => cb(data));
+        bc && bc.postMessage({ t: "doc", code, data });
+      },
+      async join(code) {
+        const r = { me: {}, peers: new Map(), subs: new Set() };
+        rooms.set(code, r);
+        r.peers.set(tab, { peer: tab, isMe: true, sameTab: true, presence: r.me, seen: Date.now() });
+        bc && bc.postMessage({ t: "hello", code });
+        return {
+          presence(p) {
+            Object.assign(r.me, p);
+            Object.keys(r.me).forEach(k => r.me[k] === null && delete r.me[k]);
+            r.peers.set(tab, { peer: tab, isMe: true, sameTab: true, presence: { ...r.me }, seen: Date.now() });
+            bc && bc.postMessage({ t: "pres", code, tab, p: r.me });
+            emitPeers(r);
+            return Promise.resolve();
+          },
+          onPeers(cb) { r.subs.add(cb); setTimeout(() => emitPeers(r), 0); return () => r.subs.delete(cb); },
+          leave() { bc && bc.postMessage({ t: "bye", code, tab }); rooms.delete(code); return Promise.resolve(); },
+        };
+      },
+    };
+  })();
+
+  const sync = {
+    watch(code, cb) {
+      if (!db) return local.watch(code, cb);
+      return db.doc("games/" + code).onSnapshot(s => cb(s.exists ? s.data() : null), e => toast("Lost the live connection. Reload the page to reconnect."));
+    },
+    async get(code) {
+      if (!db) return local.get(code);
+      const s = await db.doc("games/" + code).get();
+      return s.exists ? s.data() : null;
+    },
+    async set(code, data) {
+      if (!db) return local.set(code, data);
+      return db.doc("games/" + code).set(data);
+    },
+    async join(code) {
+      const name = "game-" + code.toLowerCase();
+      if (room) {
+        try {
+          const r = await room.join(name);
+          return {
+            presence: p => r.presence(p).catch(() => {}),
+            onPeers: cb => r.onPeers(ch => cb(ch.peers)),
+            leave: () => r.leave().catch(() => {}),
+          };
+        } catch (e) { /* fall through to local */ }
       }
-      return html + "</div></div>";
+      return local.join(code);
+    },
+  };
+
+  // ================= HOST =================
+  const H = { code: null, game: null, unsub: null, room: null, peers: [], writing: false, queued: null, lastCalledLen: -1, claimsSeen: new Map(), ticker: null };
+
+  // One write at a time; the latest requested state wins.
+  async function writeGame(next) {
+    H.game = next; renderHost();
+    if (H.writing) { H.queued = next; return; }
+    H.writing = true;
+    try { await sync.set(H.code, next); }
+    catch (e) { toast("Couldn’t save that change. Check your connection and try again."); }
+    H.writing = false;
+    if (H.queued) { const q = H.queued; H.queued = null; writeGame(q); }
+  }
+  const patch = p => writeGame({ ...H.game, ...p, updatedAt: Date.now() });
+
+  let maxPlayers = 6;
+  $("plMinus").onclick = () => { maxPlayers = Math.max(1, maxPlayers - 1); $("plCount").textContent = maxPlayers; };
+  $("plPlus").onclick = () => { maxPlayers = Math.min(30, maxPlayers + 1); $("plCount").textContent = maxPlayers; };
+
+  $("createBtn").onclick = async () => {
+    $("hostErr").textContent = "";
+    $("createBtn").disabled = true;
+    try {
+      let code = newCode();
+      for (let i = 0; i < 4 && await sync.get(code); i++) code = newCode();
+      const game = {
+        code, round: 1, status: "lobby", mode: $("setMode").value, maxPlayers,
+        pattern: $("setPattern").value, interval: +$("setInterval").value, challengeEvery: +$("setChallenge").value,
+        called: [], nextAt: null, winners: [], challenge: null, resumeAfter: false, createdAt: Date.now(), updatedAt: Date.now(),
+      };
+      await sync.set(code, game);
+      store.set("pb:host", code);
+      openHost(code, game);
+    } catch (e) {
+      $("hostErr").textContent = "Couldn’t create the game. Only the page’s owner or an Editor can host.";
+    }
+    $("createBtn").disabled = false;
+  };
+
+  $("resumeBtn").onclick = async () => {
+    const code = store.get("pb:host");
+    const g = code && await sync.get(code).catch(() => null);
+    if (g) openHost(code, g); else { store.del("pb:host"); $("resumeBox").hidden = true; toast("That game isn’t around anymore. Create a new one."); }
+  };
+
+  async function openHost(code, game) {
+    H.code = code; H.game = game; H.lastCalledLen = game.called.length; H.claimsSeen = new Map();
+    hostSeenWinner = game.winners.length ? game.winners.at(-1).at : 0;
+    show("viewHost");
+    buildBoard($("hBoard"), game.mode);
+    renderHost();
+    H.unsub && H.unsub();
+    H.unsub = sync.watch(code, g => {
+      if (!g || H.writing || H.queued) return; // our own pending write is the truth
+      H.game = g; renderHost();
+    });
+    H.room = await sync.join(code);
+    H.room.presence({ role: "host" });
+    H.room.onPeers(peers => { H.peers = peers; renderPlayers(); });
+    clearInterval(H.ticker);
+    H.ticker = setInterval(hostTick, 200);
+  }
+
+  function hostTick() {
+    const g = H.game;
+    if (!g) return;
+    if (g.status === "live" && g.nextAt && Date.now() >= g.nextAt && !H.writing) drawBall();
+    renderCountdown("h", g);
+  }
+
+  function drawBall() {
+    const g = H.game, total = colSize(g.mode) * 5;
+    const left = Array.from({ length: total }, (_, i) => i + 1).filter(n => !g.called.includes(n));
+    if (!left.length) { patch({ status: "paused", nextAt: null }); toast("Every ball has been picked!"); return; }
+    const n = left[rand(left.length)];
+    const called = [...g.called, n];
+    const p = { called };
+    if (g.challengeEvery && called.length % g.challengeEvery === 0) {
+      p.challenge = { id: Date.now(), text: pickFrom(CHALLENGES) };
+      p.resumeAfter = g.status === "live";
+      p.status = "paused"; p.nextAt = null;
+    } else if (g.status === "live") p.nextAt = Date.now() + g.interval * 1000;
+    patch(p);
+  }
+
+  const startAuto = () => patch({ status: "live", nextAt: Date.now() + H.game.interval * 1000, challenge: null });
+  const pauseAuto = () => patch({ status: "paused", nextAt: null });
+
+  $("hStart").onclick = () => {
+    const g = H.game;
+    if (g.status === "live") pauseAuto();
+    else if (!g.called.length) patch({ status: "live", nextAt: Date.now() + 3000, challenge: null }); // first ball after a 3s countdown
+    else startAuto();
+  };
+  $("hDraw").onclick = () => drawBall();
+  $("hUndo").onclick = () => { if (H.game.called.length) patch({ called: H.game.called.slice(0, -1), status: "paused", nextAt: null }); };
+  $("hChallenge").onclick = () => patch({ challenge: { id: Date.now(), text: pickFrom(CHALLENGES) }, resumeAfter: H.game.status === "live", status: "paused", nextAt: null });
+  $("hInterval").onchange = () => {
+    const interval = +$("hInterval").value;
+    patch(H.game.status === "live" ? { interval, nextAt: Date.now() + interval * 1000 } : { interval });
+  };
+  $("hPattern").onchange = () => patch({ pattern: $("hPattern").value });
+  $("hChallengeEvery").onchange = () => patch({ challengeEvery: +$("hChallengeEvery").value });
+
+  let armed = 0;
+  $("hNewRound").onclick = () => {
+    if (H.game.called.length && Date.now() - armed > 3000) {
+      armed = Date.now(); $("hNewRound").textContent = "Tap again to confirm"; $("hNewRound").classList.add("danger");
+      setTimeout(() => { $("hNewRound").textContent = "🔄 New round"; $("hNewRound").classList.remove("danger"); }, 3000);
+      return;
+    }
+    armed = 0; $("hNewRound").textContent = "🔄 New round"; $("hNewRound").classList.remove("danger");
+    newRound();
+  };
+  function newRound() {
+    closeModal();
+    patch({ round: H.game.round + 1, status: "lobby", called: [], nextAt: null, winners: [], challenge: null, resumeAfter: false });
+    H.claimsSeen = new Map();
+    toast("New round! Everyone gets a fresh card.");
+  }
+  $("hLeave").onclick = () => {
+    clearInterval(H.ticker); H.unsub && H.unsub(); H.room && H.room.leave();
+    if (H.game && H.game.status === "live") pauseAuto();
+    H.code = null; H.game = null; goHome();
+  };
+
+  function renderHost() {
+    const g = H.game;
+    if (!g) return;
+    $("hCode").textContent = $("hCode2").textContent = g.code;
+    $("hPlayersMax").textContent = g.maxPlayers;
+    $("hRound").textContent = g.round;
+    $("hTotal").textContent = colSize(g.mode) * 5;
+    $("hInterval").value = g.interval; $("hPattern").value = g.pattern; $("hChallengeEvery").value = g.challengeEvery;
+    const isNew = g.called.length > H.lastCalledLen && H.lastCalledLen >= 0;
+    renderBall("h", g, isNew);
+    if (isNew) say(g.mode === "numbers" ? `${LETTERS[colOf(g.called.at(-1), g.mode)]}, ${g.called.at(-1)}` : ballText(g.called.at(-1), g.mode), $("hVoice").checked);
+    H.lastCalledLen = g.called.length;
+    $("hStart").textContent = g.status === "live" ? "⏸ Pause auto draw" : g.called.length ? "▶ Resume auto draw" : "▶ Start auto draw";
+    $("hStart").classList.toggle("on", g.status === "live");
+    $("hUndo").disabled = !g.called.length;
+    $("hDraw").disabled = g.called.length >= colSize(g.mode) * 5;
+    document.querySelectorAll("#hBoard .board-cell.hit").forEach(el => el.classList.remove("hit"));
+    g.called.forEach(n => { const el = document.querySelector(`#hBoard [data-n="${n}"]`); el && el.classList.add("hit"); });
+    $("hWinners").innerHTML = g.winners.length
+      ? "<div class=\"count\">Winners this round</div>" + g.winners.map(w => `<div>🏆 ${esc(w.name)} <span>· ${esc(w.prize)}</span></div>`).join("")
+      : "";
+    renderPlayers();
+    hostModal(g);
+  }
+
+  function playersFrom(peers) {
+    return peers.filter(p => p.presence && p.presence.role === "player" && typeof p.presence.name === "string")
+      .sort((a, b) => (a.presence.joinedAt || 0) - (b.presence.joinedAt || 0));
+  }
+
+  function verifyPlayer(pr, g) {
+    if (!Array.isArray(pr.cells) || pr.cells.length !== 5 || pr.round !== g.round) return null;
+    const called = new Set(g.called), bits = pr.marked | 0;
+    const isMarked = (c, r) => !!(bits & (1 << (c * 5 + r)));
+    return { win: !!winShape(pr.cells, isMarked, called, g.pattern), prog: bestProgress(pr.cells, isMarked, called, g.pattern) };
+  }
+
+  function renderPlayers() {
+    const g = H.game;
+    if (!g) return;
+    const list = playersFrom(H.peers);
+    $("hPlayersNum").textContent = Math.min(list.length, g.maxPlayers);
+    $("hPlayersSub").textContent = list.length ? (g.status === "lobby" ? "Everyone in? Press Start." : "Live progress on each card.") : "Waiting for friends to join with the code.";
+    $("hPlayers").innerHTML = list.length ? list.map((p, i) => {
+      const v = verifyPlayer(p.presence, g);
+      const prog = v ? (v.win ? "✅ has it!" : `${v.prog[0]}/${v.prog[1]}`) : "joining…";
+      return `<div class="player${i >= g.maxPlayers ? " extra" : ""}"><div class="av" style="background:${COLORS[i % 5]}">${esc((p.presence.name[0] || "?").toUpperCase())}</div>
+        <div class="nm">${esc(p.presence.name)}${i >= g.maxPlayers ? " · over the limit" : ""}</div><div class="prog">${prog}</div></div>`;
+    }).join("") : `<div class="empty">No one yet. Share the code <b>${esc(g.code)}</b>.</div>`;
+
+    // PARVA claims
+    const claims = list.slice(0, g.maxPlayers).filter(p => p.presence.claim && p.presence.round === g.round && H.claimsSeen.get(p.peer) !== p.presence.claim
+      && !g.winners.some(w => w.peer === p.peer));
+    const box = $("hClaims");
+    if (!claims.length) { box.hidden = true; box.innerHTML = ""; return; }
+    box.hidden = false;
+    box.innerHTML = "<h2>📣 Someone called PARVA!</h2>" + claims.map(p => {
+      const v = verifyPlayer(p.presence, g);
+      return `<div class="claim"><div class="who">${esc(p.presence.name)}</div>
+        <div class="verdict ${v && v.win ? "ok" : "no"}">${v && v.win ? "✅ Their card checks out" : "❌ Their card doesn’t have the pattern yet"}</div>
+        <div class="acts"><button class="primary small" data-confirm="${esc(p.peer)}">Confirm winner</button><button class="small" data-dismiss="${esc(p.peer)}">Not a win</button></div></div>`;
     }).join("");
-    if (focused) { const el = $("name" + focused); if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } }
+    if (g.status === "live" && claims.some(p => (verifyPlayer(p.presence, g) || {}).win)) pauseAuto();
+  }
+  $("hClaims").addEventListener("click", e => {
+    const b = e.target.closest("button");
+    if (!b) return;
+    const peer = b.dataset.confirm || b.dataset.dismiss;
+    const p = H.peers.find(x => x.peer === peer);
+    if (!p) return;
+    H.claimsSeen.set(peer, p.presence.claim);
+    if (b.dataset.confirm) {
+      patch({ status: "paused", nextAt: null, challenge: null, winners: [...H.game.winners, { name: p.presence.name.slice(0, 20), peer, prize: pickFrom(PRIZES), at: Date.now() }] });
+    } else renderPlayers();
+  });
+
+  // Host popups mirror the shared state: a challenge, or the newest winner.
+  let hostSeenWinner = 0;
+  function hostModal(g) {
+    const w = g.winners.at(-1);
+    if (g.challenge) {
+      openModal({
+        kicker: `Ball ${g.called.length} · party challenge`, title: "🎁 Challenge!", who: "It’s on everyone’s screen now.",
+        text: g.challenge.text, key: "c" + g.challenge.id,
+        actions: [
+          ["🔀 Pick another", "", () => patch({ challenge: { id: g.challenge.id, text: pickFrom(CHALLENGES, g.challenge.text) } })],
+          [g.resumeAfter ? "Done! Keep drawing" : "Done!", "primary", () => patch(g.resumeAfter ? { challenge: null, status: "live", nextAt: Date.now() + g.interval * 1000, resumeAfter: false } : { challenge: null, resumeAfter: false })],
+        ],
+      });
+    } else if (w && w.at > hostSeenWinner) {
+      if (modalKey !== "w" + w.at) { celebrate(); playSong(); say(`Parva! ${w.name} wins!`, $("hVoice").checked); }
+      openModal({
+        kicker: "We have a winner", title: "PARVA! 🎉", big: true, who: `${w.name} got it after ${g.called.length} balls!`, text: w.prize, key: "w" + w.at,
+        actions: [
+          ["🔀 Different prize", "", () => patch({ winners: [...g.winners.slice(0, -1), { ...w, prize: pickFrom(PRIZES, w.prize) }] })],
+          ["🔄 New round", "", () => { hostSeenWinner = w.at; newRound(); }],
+          ["Keep playing", "primary", () => { hostSeenWinner = w.at; closeModal(); startAuto(); }],
+        ],
+      });
+    } else if (modalKey && (modalKey[0] === "c" || modalKey[0] === "w")) closeModal();
   }
 
-  function syncWinners() {
-    wonCards = new Set(cards.filter(c => winCells(c)));
+  // ================= PLAYER =================
+  const P = { code: null, name: "", game: null, unsub: null, room: null, cardKey: null, cells: null, marked: 0, claim: null, lastCalledLen: -1, seenChallenge: null, seenWinner: 0, joinedAt: 0, peers: [] };
+
+  $("joinCode").addEventListener("input", e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""); });
+  $("joinForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const code = $("joinCode").value.trim().toUpperCase(), name = $("joinName").value.trim();
+    $("joinErr").textContent = "";
+    if (code.length !== 4) { $("joinErr").textContent = "The code has 4 letters or numbers. Check the host’s screen."; return; }
+    if (!name) { $("joinErr").textContent = "Add your name so the host knows who won."; return; }
+    $("joinBtn").disabled = true;
+    const g = await sync.get(code).catch(() => null);
+    $("joinBtn").disabled = false;
+    if (!g) { $("joinErr").textContent = `No game found with code ${code}. Check the code and try again.`; return; }
+    store.set("pb:player", { code, name });
+    openPlayer(code, name, g);
+  });
+
+  async function openPlayer(code, name, game) {
+    Object.assign(P, { code, name, game, lastCalledLen: game.called.length, seenChallenge: game.challenge ? game.challenge.id : null, seenWinner: game.winners.length ? game.winners.at(-1).at : 0 });
+    P.joinedAt = (store.get("pb:joined:" + code) || Date.now());
+    store.set("pb:joined:" + code, P.joinedAt);
+    show("viewPlayer");
+    loadCard();
+    if ($("pAuto").checked) markAllCalled();
+    renderPlayer();
+    P.unsub && P.unsub();
+    P.unsub = sync.watch(code, g => {
+      if (!g) { toast("The host ended this game."); return; }
+      const roundChanged = g.round !== P.game.round;
+      P.game = g;
+      if (roundChanged) { P.claim = null; closeModal(); loadCard(); toast("New round! Here’s a fresh card."); }
+      renderPlayer();
+    });
+    P.room = await sync.join(code);
+    pushPresence();
+    P.room.onPeers(peers => { P.peers = peers; renderFull(); });
+    clearInterval(P.ticker);
+    P.ticker = setInterval(() => P.game && renderCountdown("p", P.game), 200);
   }
 
-  // Announces any card that just won. Returns true if someone won.
-  function checkWins() {
-    const fresh = cards.map((c, i) => [c, i]).filter(([c]) => winCells(c) && !wonCards.has(c));
-    fresh.forEach(([c]) => wonCards.add(c));
-    if (!fresh.length) return false;
-    stopAuto(); resumeAuto = false;
-    const names = fresh.map(([c, i]) => cardName(c, i));
-    celebrate();
-    say(`Parva! ${names.join(" and ")} wins!`);
-    openWin(names);
-    return true;
+  function loadCard() {
+    const g = P.game;
+    P.cardKey = `pb:card:${P.code}:${g.round}`;
+    const saved = store.get(P.cardKey);
+    if (saved && saved.mode === g.mode && Array.isArray(saved.cells)) { P.cells = saved.cells; P.marked = saved.marked | 0; }
+    else { P.cells = makeCard(g.mode); P.marked = 1 << 12; saveCard(); }
+  }
+  const saveCard = () => store.set(P.cardKey, { mode: P.game.mode, cells: P.cells, marked: P.marked });
+  const isMarked = (c, r) => !!(P.marked & (1 << (c * 5 + r)));
+  const pushPresence = () => P.room && P.room.presence({ role: "player", name: P.name.slice(0, 20), cells: P.cells, marked: P.marked, round: P.game.round, claim: P.claim, joinedAt: P.joinedAt });
+
+  function renderFull() {
+    const list = playersFrom(P.peers);
+    const idx = list.findIndex(p => p.isMe);
+    const full = idx >= 0 && idx >= P.game.maxPlayers;
+    $("pFull").hidden = !full;
+    $("pCardWrap").hidden = $("pParva").hidden = full;
+  }
+
+  function renderPlayer() {
+    const g = P.game, called = new Set(g.called);
+    const isNew = g.called.length > P.lastCalledLen;
+    if (isNew && $("pAuto").checked) {
+      g.called.slice(P.lastCalledLen).forEach(n => P.cells.forEach((col, c) => col.forEach((v, r) => { if (v === n) P.marked |= 1 << (c * 5 + r); })));
+      saveCard();
+    }
+    if (isNew) say(ballText(g.called.at(-1), g.mode), $("pVoice").checked);
+    renderBall("p", g, isNew);
+    P.lastCalledLen = g.called.length;
+
+    const win = winShape(P.cells, isMarked, called, g.pattern);
+    const winSet = new Set((win || []).map(([c, r]) => c + "," + r));
+    let html = `<div class="card${win ? " winner" : ""}"><div class="card-top"><span>${esc(P.name)}’s card</span><span class="pattern">Win: ${PATTERN_NAMES[g.pattern]}</span></div><div class="card-grid">`;
+    LETTERS.forEach((L, c) => html += `<div class="card-head" style="--c:${COLORS[c]}">${L}</div>`);
+    for (let r = 0; r < 5; r++) for (let c = 0; c < 5; c++) {
+      const n = P.cells[c][r], cls = ["cell"];
+      if (n === 0) cls.push("free");
+      if (isMarked(c, r)) cls.push("marked");
+      if (n && called.has(n)) cls.push("called");
+      if (winSet.has(c + "," + r)) cls.push("win");
+      const inner = n === 0 ? `<span class="e">🎂</span><span class="t">FREE</span>`
+        : g.mode === "numbers" ? n : `<span class="e">${itemOf(n, g.mode).e}</span><span class="t">${itemOf(n, g.mode).t}</span>`;
+      html += `<div class="${cls.join(" ")}" data-c="${c}" data-r="${r}" ${n ? `role="button" tabindex="0" aria-pressed="${isMarked(c, r)}" aria-label="${esc(ballText(n, g.mode))}"` : ""}>${inner}</div>`;
+    }
+    $("pCardWrap").innerHTML = html + "</div></div>";
+
+    const btn = $("pParva");
+    // A claim the host hasn't answered within 20s can be sent again.
+    const claimed = !!P.claim && Date.now() - P.claim < 20000;
+    btn.disabled = !win || claimed;
+    btn.className = "parva-btn" + (claimed ? " sent" : win ? " ready" : "");
+    btn.textContent = claimed ? "Sent! Waiting for the host…" : win ? "Shout PARVA! 🎉" : "PARVA!";
+    pushPresence();
+    renderFull();
+    playerModal(g);
   }
 
   function toggleCell(cell) {
     if (!cell || cell.classList.contains("free")) return;
-    const card = cards[+cell.dataset.card], c = +cell.dataset.c, r = +cell.dataset.r;
-    card.marked[c][r] = !card.marked[c][r];
-    if (!winCells(card)) wonCards.delete(card);
-    renderCards();
-    checkWins();
+    const bit = 1 << (+cell.dataset.c * 5 + +cell.dataset.r);
+    P.marked ^= bit; saveCard(); renderPlayer();
   }
-  $("cards").addEventListener("click", e => toggleCell(e.target.closest(".cell")));
-  $("cards").addEventListener("keydown", e => {
+  $("pCardWrap").addEventListener("click", e => toggleCell(e.target.closest(".cell")));
+  $("pCardWrap").addEventListener("keydown", e => {
     if ((e.key === "Enter" || e.key === " ") && e.target.classList.contains("cell")) {
       e.preventDefault();
-      const key = [e.target.dataset.card, e.target.dataset.c, e.target.dataset.r];
+      const { c, r } = e.target.dataset;
       toggleCell(e.target);
-      const again = document.querySelector(`.cell[data-card="${key[0]}"][data-c="${key[1]}"][data-r="${key[2]}"]`);
-      if (again) again.focus();
+      const again = document.querySelector(`#pCardWrap .cell[data-c="${c}"][data-r="${r}"]`);
+      again && again.focus();
     }
   });
-  $("cards").addEventListener("input", e => {
-    if (e.target.dataset.name !== undefined) cards[+e.target.dataset.name].name = e.target.value;
-  });
+  function markAllCalled() {
+    const called = new Set(P.game.called);
+    P.cells.forEach((col, c) => col.forEach((v, r) => { if (called.has(v)) P.marked |= 1 << (c * 5 + r); }));
+    saveCard();
+  }
+  $("pAuto").onchange = () => { if ($("pAuto").checked) { markAllCalled(); renderPlayer(); } };
+  $("pParva").onclick = () => {
+    P.claim = Date.now(); pushPresence(); renderPlayer();
+    if (!room) toast("Shout it out loud so the host hears you!");
+  };
+  const leavePlayer = () => {
+    P.unsub && P.unsub(); P.room && P.room.leave(); clearInterval(P.ticker);
+    store.del("pb:player"); P.code = null; goHome();
+  };
+  $("pLeave").onclick = leavePlayer;
+  $("pFullBack").onclick = leavePlayer;
 
-  function newCards() {
-    const count = isPlayer() ? 1 : +$("numCards").value;
-    cards = Array.from({ length: count }, (_, i) => makeCard(cards[i] ? cards[i].name : ""));
-    if ($("autoMark").checked && !isPlayer()) called.forEach(markEverywhere);
-    syncWinners();
-    renderCards();
+  function playerModal(g) {
+    const w = g.winners.at(-1);
+    if (g.challenge && g.challenge.id !== P.seenChallenge) {
+      openModal({
+        kicker: "Party challenge", title: "🎁 Challenge!", who: "The host will say who goes first.", text: g.challenge.text, key: "c" + g.challenge.id + g.challenge.text,
+        actions: [["Got it!", "primary", () => { P.seenChallenge = g.challenge.id; closeModal(); }]],
+      });
+    } else if (!g.challenge && modalKey && modalKey[0] === "c") closeModal();
+    if (w && w.at > P.seenWinner) {
+      P.seenWinner = w.at;
+      const mine = P.peers.find(p => p.isMe && p.sameTab !== false);
+      const me = !!mine && w.peer === mine.peer;
+      celebrate(); if (me) playSong();
+      openModal({
+        kicker: me ? "You did it" : "We have a winner", title: me ? "YOU WON! 🎉" : "PARVA! 🎉", big: true,
+        who: `${w.name} got it after ${g.called.length} balls!`, text: w.prize, key: "w" + w.at,
+        actions: [["Yay!", "primary", closeModal]],
+      });
+    }
   }
 
-  function newGame() {
-    stopAuto();
-    pool = shuffle(Array.from({ length: COL * 5 }, (_, i) => i + 1));
-    called = [];
-    cards.forEach(card => { card.marked = card.cells.map(col => col.map(n => n === 0)); });
-    wonCards.clear();
-    renderCaller(false); renderCards();
+  // ================= shared rendering =================
+  function buildBoard(el, mode) {
+    const size = colSize(mode);
+    el.className = "board" + (mode === "numbers" ? "" : " party");
+    el.style.gridTemplateColumns = `22px repeat(${size}, minmax(0, 1fr))`;
+    el.innerHTML = LETTERS.map((L, c) => `<div class="letter" style="--c:${COLORS[c]}">${L}</div>` +
+      Array.from({ length: size }, (_, k) => { const n = c * size + k + 1; return `<div class="board-cell" data-n="${n}" style="--c:${COLORS[c]}" title="${esc(ballText(n, mode))}">${mode === "numbers" ? n : itemOf(n, mode).e}</div>`; }).join("")).join("");
   }
 
-  function setMode(m) {
-    mode = m; COL = m === "party" ? 9 : 15;
-    buildBoard();
-    called = [];
-    newCards();
-    newGame();
+  function renderBall(prefix, g, animate) {
+    const last = g.called.at(-1), ball = $(prefix + "Ball");
+    if (last) {
+      ball.style.setProperty("--c", COLORS[colOf(last, g.mode)]);
+      $(prefix + "BallInner").innerHTML = g.mode === "numbers"
+        ? `<span class="l">${LETTERS[colOf(last, g.mode)]}</span><span class="num">${last}</span>`
+        : `<span class="emo">${itemOf(last, g.mode).e}</span>`;
+      $(prefix + "BallLabel").textContent = g.mode === "numbers" ? `${LETTERS[colOf(last, g.mode)]} – ${last}` : itemOf(last, g.mode).t;
+    } else {
+      ball.style.removeProperty("--c");
+      $(prefix + "BallInner").innerHTML = `<span class="emo">🎈</span>`;
+      $(prefix + "BallLabel").textContent = prefix === "h" ? "Ready to party" : "Get ready!";
+    }
+    if (animate && last) { ball.classList.remove("pop"); void ball.offsetWidth; ball.classList.add("pop"); }
+    $(prefix + "Called").textContent = g.called.length;
+    $(prefix + "Recent").innerHTML = g.called.slice(-6, -1).reverse()
+      .map(n => `<div class="mini" style="--c:${COLORS[colOf(n, g.mode)]}" title="${esc(ballText(n, g.mode))}">${ballShort(n, g.mode)}</div>`).join("");
+    renderCountdown(prefix, g);
   }
 
-  // ---------- popups ----------
-  let popupKind = "challenge", lastPick = "";
-  function spin(list, done) {
-    const reel = $("mReel");
+  function renderCountdown(prefix, g) {
+    const el = $(prefix + "Countdown"), ring = $(prefix + "Ring");
+    let text, pct = 0, paused = true;
+    if (g.status === "live" && g.nextAt) {
+      const left = Math.max(0, g.nextAt - Date.now());
+      text = left > 300 ? `Next ball in ${Math.ceil(left / 1000)}s` : "Here it comes…";
+      pct = 100 - Math.min(100, left / (g.interval * 1000) * 100);
+      paused = false;
+    } else if (g.challenge) text = "Challenge time! 🎁";
+    else if (g.winners.length && g.status !== "live") text = `🏆 ${g.winners.at(-1).name} won!`;
+    else if (g.status === "lobby") text = prefix === "h" ? "Press Start when everyone’s in" : "Waiting for the host to start";
+    else text = "Paused by the host";
+    if (el.textContent !== text) el.textContent = text;
+    el.classList.toggle("paused", paused);
+    ring.style.setProperty("--pct", pct.toFixed(1));
+  }
+
+  // ================= modal =================
+  let modalKey = null;
+  function openModal({ kicker, title, big, who, text, key, actions }) {
+    const same = modalKey === key;
+    modalKey = key;
+    $("mKicker").textContent = kicker;
+    $("mTitle").textContent = title;
+    $("mTitle").className = big ? "big" : "";
+    $("mWho").textContent = who;
+    if (!same || $("mReel").dataset.text !== text) spinTo(text, same);
+    $("mActions").innerHTML = "";
+    actions.forEach(([label, cls, fn]) => {
+      const b = document.createElement("button");
+      b.textContent = label; if (cls) b.className = cls; b.onclick = fn;
+      $("mActions").appendChild(b);
+    });
+    const wasHidden = $("overlay").hidden;
+    $("overlay").hidden = false;
+    if (wasHidden) $("mActions").lastChild.focus();
+  }
+  function closeModal() { modalKey = null; $("overlay").hidden = true; }
+  document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("overlay").hidden) $("mActions").lastChild.click(); });
+
+  let spinT;
+  function spinTo(text, quick) {
+    const reel = $("mReel"), pool = PRIZES.includes(text) ? PRIZES : CHALLENGES;
+    reel.dataset.text = text;
+    clearTimeout(spinT);
+    const steps = quick || matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 12;
+    let i = 0;
     reel.classList.add("spinning");
-    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    let i = 0, steps = reduce ? 1 : 14;
     const step = () => {
-      const pick = pickFrom(list, lastPick);
-      reel.textContent = pick;
-      if (++i < steps) setTimeout(step, 40 + i * 12);
-      else { lastPick = pick; reel.classList.remove("spinning"); done && done(pick); }
+      if (i++ < steps) { reel.textContent = pickFrom(pool, reel.textContent); spinT = setTimeout(step, 40 + i * 12); }
+      else { reel.textContent = text; reel.classList.remove("spinning"); }
     };
     step();
   }
 
-  function openChallenge(kicker = "Party challenge") {
-    popupKind = "challenge";
-    $("mKicker").textContent = kicker;
-    $("mTitle").textContent = "🎁 Challenge!";
-    $("mTitle").className = "";
-    $("mWho").textContent = "Whoever is closest to Parva goes first. Then pass it on!";
-    $("mAgain").textContent = "🔀 Pick another";
-    $("mClose").textContent = resumeAuto ? "Done! Keep picking" : "Done!";
-    $("overlay").hidden = false;
-    spin(CHALLENGES, pick => say(pick));
-    $("mClose").focus();
-  }
-
-  function openWin(names) {
-    popupKind = "win";
-    $("mKicker").textContent = "We have a winner";
-    $("mTitle").textContent = "PARVA! 🎉";
-    $("mTitle").className = "big";
-    $("mWho").textContent = `${names.join(" & ")} got it after ${called.length || "a few"} picks!`;
-    $("mAgain").textContent = "🔀 Different prize";
-    $("mClose").textContent = "Keep playing";
-    $("overlay").hidden = false;
-    spin(PRIZES);
-    playSong();
-    $("mClose").focus();
-  }
-
-  $("mAgain").onclick = () => spin(popupKind === "win" ? PRIZES : CHALLENGES, pick => popupKind === "challenge" && say(pick));
-  $("mClose").onclick = () => {
-    $("overlay").hidden = true;
-    if (resumeAuto) { resumeAuto = false; startAuto(false); }
-  };
-  $("overlay").addEventListener("click", e => { if (e.target === $("overlay")) $("mClose").click(); });
-  document.addEventListener("keydown", e => { if (e.key === "Escape" && !$("overlay").hidden) $("mClose").click(); });
-
-  // ---------- birthday song + confetti ----------
+  // ================= song + confetti =================
   let audio;
   function playSong() {
-    if (!$("sound").checked) return;
     try {
       audio = audio || new (window.AudioContext || window.webkitAudioContext)();
       const G4 = 392, A4 = 440, B4 = 494, C5 = 523, D5 = 587;
       const tune = [[G4, .3], [G4, .15], [A4, .45], [G4, .45], [C5, .45], [B4, .8], [G4, .3], [G4, .15], [A4, .45], [G4, .45], [D5, .45], [C5, .9]];
-      let t = audio.currentTime + 0.6;
+      let t = audio.currentTime + .6;
       tune.forEach(([f, d]) => {
-        const o = audio.createOscillator(), g = audio.createGain();
+        const o = audio.createOscillator(), gn = audio.createGain();
         o.type = "triangle"; o.frequency.value = f;
-        g.gain.setValueAtTime(0.0001, t);
-        g.gain.exponentialRampToValueAtTime(0.25, t + 0.02);
-        g.gain.exponentialRampToValueAtTime(0.0001, t + d * 0.95);
-        o.connect(g).connect(audio.destination);
-        o.start(t); o.stop(t + d);
-        t += d;
+        gn.gain.setValueAtTime(.0001, t); gn.gain.exponentialRampToValueAtTime(.25, t + .02); gn.gain.exponentialRampToValueAtTime(.0001, t + d * .95);
+        o.connect(gn).connect(audio.destination); o.start(t); o.stop(t + d); t += d;
       });
     } catch (e) {}
   }
-
   const canvas = $("confetti"), ctx = canvas.getContext("2d");
   let bits = [], raf = 0;
-  function celebrate() {
-    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    sizeCanvas();
-    const cols = ["#ff6b6b", "#ffb703", "#06d6a0", "#4cc9f0", "#c77dff", "#ff4f8b", "#ffd166"];
-    for (let i = 0; i < 220; i++) {
-      const fromLeft = i % 2 === 0;
-      bits.push({
-        x: fromLeft ? 0 : innerWidth, y: innerHeight * 0.75,
-        vx: (fromLeft ? 1 : -1) * (4 + Math.random() * 9), vy: -(9 + Math.random() * 11),
-        w: 6 + Math.random() * 6, h: 8 + Math.random() * 8, a: Math.random() * 6, va: (Math.random() - .5) * .4,
-        c: cols[i % cols.length], life: 0,
-      });
-    }
-    if (!raf) raf = requestAnimationFrame(frame);
-  }
   function sizeCanvas() {
     const dpr = window.devicePixelRatio || 1;
     canvas.width = innerWidth * dpr; canvas.height = innerHeight * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
   addEventListener("resize", () => { if (raf) sizeCanvas(); });
+  function celebrate() {
+    if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    sizeCanvas();
+    const cols = ["#ff6b6b", "#ffb703", "#06d6a0", "#4cc9f0", "#c77dff", "#ff4f8b", "#ffd166"];
+    for (let i = 0; i < 220; i++) {
+      const left = i % 2 === 0;
+      bits.push({ x: left ? 0 : innerWidth, y: innerHeight * .75, vx: (left ? 1 : -1) * (4 + Math.random() * 9), vy: -(9 + Math.random() * 11),
+        w: 6 + Math.random() * 6, h: 8 + Math.random() * 8, a: Math.random() * 6, va: (Math.random() - .5) * .4, c: cols[i % cols.length], life: 0 });
+    }
+    if (!raf) raf = requestAnimationFrame(frame);
+  }
   function frame() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     bits = bits.filter(b => b.y < innerHeight + 40 && b.life < 400);
     bits.forEach(b => {
-      b.vy += 0.28; b.vx *= 0.99; b.x += b.vx; b.y += b.vy; b.a += b.va; b.life++;
-      ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.a);
-      ctx.fillStyle = b.c; ctx.fillRect(-b.w / 2, -b.h / 2, b.w, b.h * Math.abs(Math.cos(b.a * 2)));
-      ctx.restore();
+      b.vy += .28; b.vx *= .99; b.x += b.vx; b.y += b.vy; b.a += b.va; b.life++;
+      ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.a); ctx.fillStyle = b.c;
+      ctx.fillRect(-b.w / 2, -b.h / 2, b.w, b.h * Math.abs(Math.cos(b.a * 2))); ctx.restore();
     });
     raf = bits.length ? requestAnimationFrame(frame) : 0;
     if (!raf) ctx.clearRect(0, 0, canvas.width, canvas.height);
   }
 
-  // ---------- misc ----------
-  let toastT;
-  function toast(msg) {
-    const t = $("toast");
-    t.textContent = msg; t.classList.add("show");
-    clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 3200);
+  // ================= boot =================
+  function renderChips() {
+    $("headerChips").innerHTML = `<span class="chip"><span class="dot${live ? " live" : ""}"></span>${live ? "Live on every phone" : "This device only"}</span>`;
+  }
+  function goHome() {
+    closeModal();
+    show("viewHome");
+    $("hostCard").hidden = !canHost;
+    $("resumeBox").hidden = !store.get("pb:host");
+    const pl = store.get("pb:player");
+    if (pl && !$("joinCode").value) { $("joinCode").value = pl.code; $("joinName").value = pl.name; }
   }
 
-  // Two-tap confirm, since the page can't show browser dialogs
-  let armed = 0;
-  $("newGame").onclick = () => {
-    if (!called.length || Date.now() - armed < 3000) {
-      armed = 0; newGame(); $("newGame").textContent = "🔄 New round"; $("newGame").classList.remove("danger");
-      toast("New round! Same cards, all squares cleared.");
-      return;
+  async function boot() {
+    renderChips();
+    goHome();
+    if (window.claude && typeof window.claude.use === "function") {
+      [db, room, user] = await Promise.all(["db", "room", "user"].map(n => window.claude.use(n).catch(() => null)));
+      live = !!db;
+      canHost = db && user ? await user.canEdit() : true;
     }
-    armed = Date.now();
-    $("newGame").textContent = "Tap again to reset"; $("newGame").classList.add("danger");
-    setTimeout(() => { if (armed && Date.now() - armed >= 2900) { armed = 0; $("newGame").textContent = "🔄 New round"; $("newGame").classList.remove("danger"); } }, 3000);
-  };
-
-  function setScreen(player) {
-    document.body.classList.toggle("player", player);
-    $("tabHost").classList.toggle("active", !player);
-    $("tabPlayer").classList.toggle("active", player);
-    $("tabHost").setAttribute("aria-selected", !player);
-    $("tabPlayer").setAttribute("aria-selected", player);
-    stopAuto();
-    if (player) { called = []; cards.forEach(card => { card.marked = card.cells.map(col => col.map(n => n === 0)); }); }
-    newGame();
-    newCards();
+    $("localBanner").hidden = live;
+    renderChips();
+    goHome();
+    // Rejoin where this device left off.
+    const pl = store.get("pb:player"), hostCode = store.get("pb:host");
+    if (pl) { const g = await sync.get(pl.code).catch(() => null); if (g) return openPlayer(pl.code, pl.name, g); }
+    if (hostCode && canHost && !pl) { /* host taps "Back to game" so a stale game never auto-opens */ }
   }
-
-  $("draw").onclick = () => { if (timer) stopAuto(); draw(); };
-  $("auto").onclick = () => timer ? stopAuto() : startAuto();
-  $("undo").onclick = () => { stopAuto(); undo(); };
-  $("challengeBtn").onclick = $("playerChallenge").onclick = () => { resumeAuto = !!timer; stopAuto(); openChallenge(); };
-  $("newCards").onclick = newCards;
-  $("numCards").onchange = newCards;
-  $("mode").onchange = () => setMode($("mode").value);
-  $("pattern").onchange = () => { syncWinners(); renderCards(); };
-  $("autoMark").onchange = () => { if ($("autoMark").checked) { called.forEach(markEverywhere); renderCards(); checkWins(); } };
-  $("speed").oninput = () => { $("speedVal").textContent = $("speed").value; if (timer) { stopAuto(); startAuto(false); } };
-  $("tabHost").onclick = () => setScreen(false);
-  $("tabPlayer").onclick = () => setScreen(true);
-  document.addEventListener("keydown", e => {
-    if (e.code === "Space" && !isPlayer() && $("overlay").hidden && !["SELECT", "INPUT", "BUTTON", "TEXTAREA"].includes(document.activeElement.tagName) && !document.activeElement.classList.contains("cell")) {
-      e.preventDefault(); $("draw").click();
-    }
-  });
-
-  setMode("party");
+  boot();
 })();
 </script>

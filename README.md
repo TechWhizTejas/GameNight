@@ -10,4 +10,9 @@ A one-page bingo app. Open `index.html` in any browser — no install needed.
 
 ## Parva's Birthday Bingo
 
-`parva-birthday.html` is the birthday edition: columns spell P-A-R-V-A, balls can be party pictures (cake, pizza, karaoke…) or numbers, a random birthday challenge can pop up every few picks, and winners get confetti, the Happy Birthday tune and a random prize.
+`parva-birthday.html` is the multiplayer birthday edition (published as a claude.ai artifact so phones stay in sync):
+
+- **Host** picks the number of players, ball type (party pictures or numbers), winning pattern, seconds between balls and how often a party challenge pops up, then gets a 4-character join code.
+- **Players** open the same page, tap *Join a game*, enter the code and their name. They see the latest ball, a countdown to the next one, and their own P-A-R-V-A card below.
+- When a card has the pattern the player taps **PARVA!**; the host console checks the card and confirms the winner, which shows on every phone with confetti and a random prize.
+- Without live sync (e.g. opened as a plain file) it still works across tabs on one device.
