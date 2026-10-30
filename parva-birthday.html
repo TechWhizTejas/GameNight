@@ -326,7 +326,7 @@
         <div class="field" style="margin:12px 0 14px">
           <label for="setQuestions">Your own quiz questions (optional)</label>
           <textarea id="setQuestions" rows="4" placeholder="One per line: question | right answer | wrong | wrong | wrong&#10;What is Parva’s favourite food? | Pizza | Pasta | Biryani | Burgers"></textarea>
-          <span class="note" style="margin:0">Asked first, before the built-in trivia. A scoreboard pops up every 10 balls.</span>
+          <span class="note" style="margin:0">These join the “About Parva” category. The quiz rotates through Parva, science, space, Indian movies and general knowledge. A scoreboard pops up every 10 balls.</span>
         </div>
         <button class="primary big" id="createBtn">Create game</button>
         <p class="err" id="hostErr"></p>
@@ -557,44 +557,73 @@
     "Name three things Parva is great at in 10 seconds.",
     "Act out Parva’s morning routine. No words allowed.",
   ];
-  // Built-in quiz: [question, right answer, wrong, wrong, wrong]
-  const QUESTIONS = [
-    ["Which planet is known as the Red Planet?", "Mars", "Venus", "Jupiter", "Mercury"],
-    ["How many sides does a hexagon have?", "6", "5", "7", "8"],
-    ["What is the largest ocean on Earth?", "Pacific", "Atlantic", "Indian", "Arctic"],
-    ["Which country gave the world pizza?", "Italy", "Greece", "France", "USA"],
-    ["“Happy Birthday to You” started life as a song called…", "Good Morning to All", "Happy Day to You", "Cheers to You", "Birthday Cheer"],
-    ["How many minutes are in a day?", "1,440", "1,240", "1,400", "1,600"],
-    ["What gas do plants take in from the air?", "Carbon dioxide", "Oxygen", "Nitrogen", "Helium"],
-    ["Which gas makes party balloons float?", "Helium", "Oxygen", "Carbon dioxide", "Argon"],
-    ["What is the birthstone for April?", "Diamond", "Ruby", "Emerald", "Sapphire"],
-    ["How many players does a cricket team have on the field?", "11", "9", "10", "12"],
-    ["What is the capital of Australia?", "Canberra", "Sydney", "Melbourne", "Perth"],
-    ["How many legs does a spider have?", "8", "6", "10", "12"],
-    ["What is the fastest land animal?", "Cheetah", "Lion", "Horse", "Greyhound"],
-    ["Which festival is known as the Festival of Lights?", "Diwali", "Holi", "Eid", "Navratri"],
-    ["Mix blue and yellow paint and you get…", "Green", "Purple", "Orange", "Brown"],
-    ["How many continents are there?", "7", "5", "6", "8"],
-    ["Who painted the Mona Lisa?", "Leonardo da Vinci", "Michelangelo", "Picasso", "Van Gogh"],
-    ["What is the hardest natural substance?", "Diamond", "Gold", "Iron", "Quartz"],
-    ["What is the smallest prime number?", "2", "1", "3", "0"],
-    ["In which year did the first iPhone come out?", "2007", "2005", "2009", "2010"],
-    ["Which planet has the most famous rings?", "Saturn", "Jupiter", "Uranus", "Neptune"],
-    ["How many hours are in a week?", "168", "144", "172", "186"],
-    ["What do bees make?", "Honey", "Silk", "Butter", "Jam"],
-    ["What is the tallest mountain in the world?", "Mount Everest", "K2", "Kilimanjaro", "Mont Blanc"],
-    ["What is H₂O better known as?", "Water", "Salt", "Hydrogen", "Air"],
-    ["Which instrument has 88 keys?", "Piano", "Guitar", "Violin", "Flute"],
-    ["What is the main ingredient in guacamole?", "Avocado", "Tomato", "Cucumber", "Peas"],
-    ["How many days are in a leap year?", "366", "365", "364", "367"],
-    ["Which sport uses a shuttlecock?", "Badminton", "Tennis", "Squash", "Table tennis"],
-    ["What is the currency of Japan?", "Yen", "Won", "Yuan", "Ringgit"],
-    ["How many cards are in a standard deck, without jokers?", "52", "54", "48", "50"],
-    ["What is the largest planet in our solar system?", "Jupiter", "Saturn", "Neptune", "Earth"],
-    ["Which country is home to the Taj Mahal?", "India", "Pakistan", "Egypt", "Turkey"],
-    ["How many strings does a standard guitar have?", "6", "4", "5", "8"],
-    ["Which animal is known as the “ship of the desert”?", "Camel", "Horse", "Elephant", "Donkey"],
-  ];
+  // Built-in quiz, by category: [question, right answer, wrong, wrong, wrong]
+  const PARVA_CAT = "🎂 About Parva";
+  const PARVA_QS = []; // filled in from the host's answers about Parva
+  const QUESTION_SETS = {
+    "🔬 Science": [
+      ["Which part of a plant makes food using sunlight?", "Leaves", "Roots", "Flowers", "Stem"],
+      ["At what temperature does water boil at sea level?", "100°C", "50°C", "90°C", "120°C"],
+      ["Water turning into vapour is called…", "Evaporation", "Condensation", "Freezing", "Melting"],
+      ["Which organ pumps blood around the body?", "Heart", "Lungs", "Liver", "Brain"],
+      ["How many bones are in an adult human body?", "206", "106", "300", "156"],
+      ["Animals that eat only plants are called…", "Herbivores", "Carnivores", "Omnivores", "Predators"],
+      ["Ice is water in which state?", "Solid", "Liquid", "Gas", "Plasma"],
+      ["Which vitamin does our skin make from sunlight?", "Vitamin D", "Vitamin C", "Vitamin A", "Vitamin B12"],
+      ["What force pulls things down towards the Earth?", "Gravity", "Magnetism", "Friction", "Wind"],
+      ["Which of these is attracted to a magnet?", "Iron nail", "Wooden spoon", "Plastic ruler", "Glass marble"],
+      ["What gas do plants take in from the air?", "Carbon dioxide", "Oxygen", "Nitrogen", "Helium"],
+      ["Which gas makes party balloons float?", "Helium", "Oxygen", "Carbon dioxide", "Argon"],
+      ["How many legs does a spider have?", "8", "6", "10", "12"],
+      ["What is H₂O better known as?", "Water", "Salt", "Hydrogen", "Air"],
+    ],
+    "🚀 Space": [
+      ["Which planet is closest to the Sun?", "Mercury", "Venus", "Earth", "Mars"],
+      ["Which planet is known as the Red Planet?", "Mars", "Venus", "Jupiter", "Mercury"],
+      ["How long does Earth take to go around the Sun?", "About 365 days", "30 days", "24 hours", "100 days"],
+      ["Which is the hottest planet in our solar system?", "Venus", "Mercury", "Mars", "Jupiter"],
+      ["Who was the first person to walk on the Moon?", "Neil Armstrong", "Buzz Aldrin", "Yuri Gagarin", "Rakesh Sharma"],
+      ["Who was the first Indian to travel to space?", "Rakesh Sharma", "Kalpana Chawla", "Sunita Williams", "Vikram Sarabhai"],
+      ["What is India’s space agency called?", "ISRO", "NASA", "ESA", "DRDO"],
+      ["Which Indian mission landed near the Moon’s south pole in 2023?", "Chandrayaan-3", "Mangalyaan", "Chandrayaan-1", "Aditya-L1"],
+      ["How many planets are in our solar system?", "8", "9", "7", "10"],
+      ["The Sun is a…", "Star", "Planet", "Comet", "Moon"],
+      ["Which planet has the most famous rings?", "Saturn", "Jupiter", "Uranus", "Neptune"],
+      ["What is the largest planet in our solar system?", "Jupiter", "Saturn", "Neptune", "Earth"],
+    ],
+    "🎬 Indian movies": [
+      ["What is the villain called in “Sholay”?", "Gabbar Singh", "Mogambo", "Shakaal", "Kancha Cheena"],
+      ["“Mogambo khush hua!” is from which film?", "Mr. India", "Sholay", "Don", "Karan Arjun"],
+      ["Which film has the Oscar-winning song “Naatu Naatu”?", "RRR", "Baahubali", "Pushpa", "KGF"],
+      ["Who directed “Baahubali”?", "S. S. Rajamouli", "Rohit Shetty", "Karan Johar", "Mani Ratnam"],
+      ["In “3 Idiots”, what do his friends call Aamir Khan’s character?", "Rancho", "Raju", "Farhan", "Virus"],
+      ["Which film is about a wrestler father training his daughters?", "Dangal", "Sultan", "Chak De! India", "Mary Kom"],
+      ["“Chak De! India” is about which sport?", "Hockey", "Cricket", "Football", "Kabaddi"],
+      ["What are the lead couple called in “Dilwale Dulhania Le Jayenge”?", "Raj and Simran", "Rahul and Anjali", "Prem and Suman", "Veer and Zaara"],
+      ["Which actor is called “King Khan”?", "Shah Rukh Khan", "Salman Khan", "Aamir Khan", "Saif Ali Khan"],
+      ["Who plays Pushpa in “Pushpa: The Rise”?", "Allu Arjun", "Prabhas", "Ram Charan", "Yash"],
+      ["“Lagaan” is about a match of which sport?", "Cricket", "Hockey", "Football", "Kabaddi"],
+      ["In “Koi… Mil Gaya”, what is the alien called?", "Jadoo", "Chitti", "Bhoot", "Tara"],
+      ["Which film has the robot Chitti?", "Enthiran (Robot)", "Ra.One", "Krrish", "Koi… Mil Gaya"],
+    ],
+    "🌍 General": [
+      ["What is the largest ocean on Earth?", "Pacific", "Atlantic", "Indian", "Arctic"],
+      ["Which country gave the world pizza?", "Italy", "Greece", "France", "USA"],
+      ["“Happy Birthday to You” started life as a song called…", "Good Morning to All", "Happy Day to You", "Cheers to You", "Birthday Cheer"],
+      ["How many minutes are in a day?", "1,440", "1,240", "1,400", "1,600"],
+      ["What is the birthstone for April?", "Diamond", "Ruby", "Emerald", "Sapphire"],
+      ["How many players does a cricket team have on the field?", "11", "9", "10", "12"],
+      ["What is the capital of Australia?", "Canberra", "Sydney", "Melbourne", "Perth"],
+      ["Which festival is known as the Festival of Lights?", "Diwali", "Holi", "Eid", "Navratri"],
+      ["How many continents are there?", "7", "5", "6", "8"],
+      ["Who painted the Mona Lisa?", "Leonardo da Vinci", "Michelangelo", "Picasso", "Van Gogh"],
+      ["Which instrument has 88 keys?", "Piano", "Guitar", "Violin", "Flute"],
+      ["How many days are in a leap year?", "366", "365", "364", "367"],
+      ["What is the currency of Japan?", "Yen", "Won", "Yuan", "Ringgit"],
+      ["Which country is home to the Taj Mahal?", "India", "Pakistan", "Egypt", "Turkey"],
+      ["Which animal is known as the “ship of the desert”?", "Camel", "Horse", "Elephant", "Donkey"],
+    ],
+  };
   const QUIZ_SECS = 15, REVEAL_MS = 7000, BOARD_MS = 9000, BOARD_EVERY = 10;
   const SHAPES = ["▲", "◆", "●", "■"];
   // "question | right | wrong | wrong | wrong" per line; 2–4 answers.
@@ -1053,20 +1082,26 @@
   }
 
   // ---- quiz + scoreboard (host side) ----
+  // Rotate through the categories so the quiz stays mixed; Parva questions get one turn in each rotation.
   function newQuiz(g) {
-    let pick = H.customQs.find(q => !H.usedQ.has(q[0]));
-    if (!pick) {
-      let pool = QUESTIONS.filter(q => !H.usedQ.has(q[0]));
-      if (!pool.length) { H.usedQ = new Set(H.customQs.map(q => q[0])); pool = QUESTIONS; }
-      pick = pool[rand(pool.length)];
+    const sets = { ...QUESTION_SETS };
+    const parva = [...PARVA_QS, ...H.customQs];
+    const cats = parva.length ? [PARVA_CAT, ...Object.keys(sets)] : Object.keys(sets);
+    if (parva.length) sets[PARVA_CAT] = parva;
+    let cat, pool = [];
+    for (let i = 0; i < cats.length && !pool.length; i++) {
+      cat = cats[((g.quizCount || 0) + i) % cats.length];
+      pool = sets[cat].filter(q => !H.usedQ.has(q[0]));
     }
+    if (!pool.length) { H.usedQ = new Set(); pool = sets[cat]; } // every question used: start over
+    const pick = pool[rand(pool.length)];
     H.usedQ.add(pick[0]);
     const order = shuffle(pick.slice(1).map((text, i) => ({ text, right: i === 0 })));
     const id = Date.now();
     H.quizCorrect = order.findIndex(o => o.right);
     H.answers = new Map();
     store.set("pb:quizans:" + H.code, { id, correct: H.quizCorrect });
-    return { id, num: (g.quizCount || 0) + 1, q: pick[0], options: order.map(o => o.text), startAt: id, endsAt: id + QUIZ_SECS * 1000, phase: "question" };
+    return { id, num: (g.quizCount || 0) + 1, cat, q: pick[0], options: order.map(o => o.text), startAt: id, endsAt: id + QUIZ_SECS * 1000, phase: "question" };
   }
   const quizPlayers = g => playersFrom(H.peers).slice(0, g.maxPlayers);
   const allAnswered = g => { const ps = quizPlayers(g); return ps.length > 0 && ps.every(p => H.answers.has(scoreKey(p.presence.name))); };
@@ -1564,7 +1599,7 @@
       const opts = q.options.map((o, i) => who === "p"
         ? `<button class="ans a${i}${answered === i ? " picked" : answered !== null ? " dim" : ""}" data-ans="${i}" ${answered !== null ? "disabled" : ""}><span class="sh">${SHAPES[i]}</span>${esc(o)}</button>`
         : `<div class="ans a${i}"><span class="sh">${SHAPES[i]}</span>${esc(o)}</div>`).join("");
-      html = `<div class="kicker">🧠 Quiz question ${q.num || ""} · faster answers score more</div><div class="quiz-q">${esc(q.q)}</div>
+      html = `<div class="kicker">${esc(q.cat || "🧠 Quiz")} · question ${q.num || ""} · faster answers score more</div><div class="quiz-q">${esc(q.q)}</div>
         <div class="qtimer"><div id="qTimerBar"></div></div><div class="qsecs" id="qSecs"></div>
         <div class="answers">${opts}</div>
         ${who === "p" ? `<p class="who" style="margin-top:12px">${answered !== null ? "Answer locked in! Waiting for the others…" : "Tap your answer!"}</p>`
