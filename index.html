@@ -1158,8 +1158,11 @@
       : `<div class="empty">No points yet. The first quiz question comes after ${g.quizEvery || 5} balls.</div>`;
   }
 
+  // Nothing is drawn while a quiz, scoreboard or challenge is on everyone's screen.
+  const breakOpen = g => !!(g.quiz || g.board || g.challenge);
   function drawBall() {
     const g = H.game, total = totalBalls(modeOf(g));
+    if (breakOpen(g)) return;
     const left = Array.from({ length: total }, (_, i) => i + 1).filter(n => !g.called.includes(n));
     if (!left.length) { patch({ status: "paused", nextAt: null }); toast("Every ball has been picked!"); return; }
     const n = left[rand(left.length)];
@@ -1178,16 +1181,19 @@
     patch(p);
   }
 
-  const startAuto = () => patch({ status: "live", nextAt: Date.now() + H.game.interval * 1000, challenge: null });
+  // During a quiz or scoreboard, "start" just means: carry on drawing once it's over.
+  const startAuto = () => (H.game.quiz || H.game.board)
+    ? patch({ resumeAfter: true })
+    : patch({ status: "live", nextAt: Date.now() + H.game.interval * 1000, challenge: null });
   const pauseAuto = () => patch({ status: "paused", nextAt: null });
 
   $("hStart").onclick = () => {
     const g = H.game;
     if (g.status === "live") pauseAuto();
-    else if (!g.called.length) patch({ status: "live", nextAt: Date.now() + 3000, challenge: null }); // first ball after a 3s countdown
+    else if (!g.called.length && !breakOpen(g)) patch({ status: "live", nextAt: Date.now() + 3000, challenge: null }); // first ball after a 3s countdown
     else startAuto();
   };
-  $("hDraw").onclick = () => { if (H.game.quiz || H.game.board) return toast("Finish the quiz or scoreboard first."); drawBall(); };
+  $("hDraw").onclick = () => { if (breakOpen(H.game)) return toast("Finish the quiz, scoreboard or challenge first."); drawBall(); };
   $("hQuizEvery").onchange = () => patch({ quizEvery: +$("hQuizEvery").value });
   $("qBox").addEventListener("click", e => {
     const b = e.target.closest("button");
@@ -1204,7 +1210,7 @@
   $("hChallenge").onclick = () => patch({ challenge: { id: Date.now(), text: pickFrom(CHALLENGES) }, resumeAfter: H.game.status === "live", status: "paused", nextAt: null });
   $("hInterval").onchange = () => {
     const interval = +$("hInterval").value;
-    patch(H.game.status === "live" ? { interval, nextAt: Date.now() + interval * 1000 } : { interval });
+    patch(H.game.status === "live" && !breakOpen(H.game) ? { interval, nextAt: Date.now() + interval * 1000 } : { interval });
   };
   $("hPattern").onchange = () => patch({ pattern: $("hPattern").value });
   $("hChallengeEvery").onchange = () => patch({ challengeEvery: +$("hChallengeEvery").value });
