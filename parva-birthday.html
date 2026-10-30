@@ -1565,8 +1565,8 @@
     }
     if (animate && last) { ball.classList.remove("pop"); void ball.offsetWidth; ball.classList.add("pop"); }
     $(prefix + "Called").textContent = g.called.length;
-    // Hard level: players get no list of earlier balls, they have to keep up.
-    const showRecent = !(prefix === "p" && mode === "hard");
+    // Players only ever see the current ball; earlier balls stay on the host's screen.
+    const showRecent = prefix !== "p";
     $(prefix + "Recent").innerHTML = showRecent ? g.called.slice(-6, -1).reverse()
       .map(n => `<div class="mini" style="--c:${ballColor(n, mode)}" title="${esc(ballText(n, mode))}">${ballShort(n, mode)}</div>`).join("") : "";
     renderCountdown(prefix, g);
