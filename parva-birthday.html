@@ -674,9 +674,7 @@
   let bits = [], raf = 0;
   function celebrate() {
     if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = innerWidth * dpr; canvas.height = innerHeight * dpr;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    sizeCanvas();
     const cols = ["#ff6b6b", "#ffb703", "#06d6a0", "#4cc9f0", "#c77dff", "#ff4f8b", "#ffd166"];
     for (let i = 0; i < 220; i++) {
       const fromLeft = i % 2 === 0;
@@ -689,8 +687,14 @@
     }
     if (!raf) raf = requestAnimationFrame(frame);
   }
+  function sizeCanvas() {
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = innerWidth * dpr; canvas.height = innerHeight * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  addEventListener("resize", () => { if (raf) sizeCanvas(); });
   function frame() {
-    ctx.clearRect(0, 0, innerWidth, innerHeight);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     bits = bits.filter(b => b.y < innerHeight + 40 && b.life < 400);
     bits.forEach(b => {
       b.vy += 0.28; b.vx *= 0.99; b.x += b.vx; b.y += b.vy; b.a += b.va; b.life++;
@@ -699,7 +703,7 @@
       ctx.restore();
     });
     raf = bits.length ? requestAnimationFrame(frame) : 0;
-    if (!raf) ctx.clearRect(0, 0, innerWidth, innerHeight);
+    if (!raf) ctx.clearRect(0, 0, canvas.width, canvas.height);
   }
 
   // ---------- misc ----------
