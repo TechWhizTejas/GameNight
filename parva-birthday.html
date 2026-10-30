@@ -238,7 +238,7 @@
         </div>
         <div class="row" style="border-top:0">
           <span>Players</span>
-          <div class="stepper"><button id="plMinus" aria-label="Fewer players">−</button><output id="plCount">6</output><button id="plPlus" aria-label="More players">+</button></div>
+          <div class="stepper"><button id="plMinus" aria-label="Fewer players">−</button><output id="plCount">10</output><button id="plPlus" aria-label="More players">+</button></div>
         </div>
         <div class="row">
           <label for="setMode">Level</label>
@@ -867,12 +867,12 @@
   }
   const patch = p => writeGame({ ...H.game, ...p, updatedAt: Date.now() });
 
-  let maxPlayers = 6;
+  let maxPlayers = 10;
   const syncSetup = () => { $("setModeNote").textContent = MODE_NOTES[$("setMode").value]; $("setPatternRow").hidden = $("setMode").value !== "party"; };
   $("setMode").onchange = syncSetup;
   syncSetup();
   $("plMinus").onclick = () => { maxPlayers = Math.max(1, maxPlayers - 1); $("plCount").textContent = maxPlayers; };
-  $("plPlus").onclick = () => { maxPlayers = Math.min(30, maxPlayers + 1); $("plCount").textContent = maxPlayers; };
+  $("plPlus").onclick = () => { maxPlayers = Math.min(10, maxPlayers + 1); $("plCount").textContent = maxPlayers; };
 
   $("createBtn").onclick = async () => {
     $("hostErr").textContent = "";
