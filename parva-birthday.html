@@ -2,6 +2,7 @@
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@500;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <style>
   /* Layout: party-night stage. Home → host console (caller + players) or player view (ball + countdown, card below). */
   :root {
@@ -624,33 +625,178 @@
     };
   })();
 
-  const sync = {
+  const claudeNet = {
     watch(code, cb) {
-      if (!db) return local.watch(code, cb);
       return db.doc("games/" + code).onSnapshot(s => cb(s.exists ? s.data() : null), e => toast("Lost the live connection. Reload the page to reconnect."));
     },
-    async get(code) {
-      if (!db) return local.get(code);
-      const s = await db.doc("games/" + code).get();
-      return s.exists ? s.data() : null;
-    },
-    async set(code, data) {
-      if (!db) return local.set(code, data);
-      return db.doc("games/" + code).set(data);
-    },
+    async get(code) { const s = await db.doc("games/" + code).get(); return s.exists ? s.data() : null; },
+    async set(code, data) { return db.doc("games/" + code).set(data); },
     async join(code) {
-      const name = "game-" + code.toLowerCase();
       if (room) {
         try {
-          const r = await room.join(name);
-          return {
-            presence: p => r.presence(p).catch(() => {}),
-            onPeers: cb => r.onPeers(ch => cb(ch.peers)),
-            leave: () => r.leave().catch(() => {}),
-          };
-        } catch (e) { /* fall through to local */ }
+          const r = await room.join("game-" + code.toLowerCase());
+          return { presence: p => r.presence(p).catch(() => {}), onPeers: cb => r.onPeers(ch => cb(ch.peers)), leave: () => r.leave().catch(() => {}) };
+        } catch (e) { /* fall back to this device only */ }
       }
       return local.join(code);
+    },
+  };
+
+  // Peer-to-peer (normal website, no accounts): the host's browser holds the game and
+  // sends it to every player over WebRTC; players send their card + PARVA calls back.
+  const peerNet = (() => {
+    const PREFIX = "parvabday-";
+    const q = new URLSearchParams(location.search);
+    const opts = q.get("peerhost") ? { host: q.get("peerhost").split(":")[0], port: +(q.get("peerhost").split(":")[1] || 443), path: "/", secure: q.get("peersecure") !== "0" } : {};
+    let peer = null, role = null, hostCode = null;
+    // host side
+    const conns = new Map(); // peerId -> {conn, presence}
+    let hostGame = null, peerSubs = new Set();
+    // player side
+    let conn = null, lastGame = null, gameSubs = new Set(), playerPeerSubs = new Set(), myPres = null, lastPeers = [], retryT = null;
+
+    const hostPeers = () => [{ peer: peer.id, isMe: true, sameTab: true, presence: { role: "host" } },
+      ...[...conns.entries()].map(([id, c]) => ({ peer: id, isMe: false, presence: c.presence }))];
+    const notifyHostPeers = () => {
+      const list = hostPeers();
+      peerSubs.forEach(cb => cb(list));
+      const wire = list.map(p => ({ peer: p.peer, presence: p.presence }));
+      conns.forEach(c => c.conn.open && c.conn.send({ t: "peers", list: wire }));
+    };
+    const sendGame = c => c.open && hostGame && c.send({ t: "game", data: hostGame, now: Date.now() });
+
+    function newPeer(id) {
+      return new Promise((resolve, reject) => {
+        const p = id ? new Peer(id, opts) : new Peer(opts);
+        const fail = e => { p.destroy(); reject(e); };
+        p.once("open", () => { p.off("error", fail); resolve(p); });
+        p.once("error", fail);
+      });
+    }
+
+    async function claimHost(code) {
+      // A reloaded host's old id can linger on the server for a few seconds.
+      for (let i = 0; i < 6; i++) {
+        try { return await newPeer(PREFIX + code); }
+        catch (e) { if (e.type !== "unavailable-id" || i === 5) throw e; await new Promise(r => setTimeout(r, 2500)); }
+      }
+    }
+
+    function setupHost(p) {
+      peer = p; role = "host";
+      p.on("connection", c => {
+        c.on("open", () => { conns.set(c.peer, { conn: c, presence: {} }); sendGame(c); notifyHostPeers(); netState(); });
+        c.on("data", m => {
+          if (!m || typeof m !== "object") return;
+          if (m.t === "pres" && m.p && typeof m.p === "object") { const e = conns.get(c.peer); if (e) { e.presence = m.p; notifyHostPeers(); } }
+        });
+        const gone = () => { if (conns.delete(c.peer)) { notifyHostPeers(); netState(); } };
+        c.on("close", gone); c.on("error", gone);
+      });
+      p.on("disconnected", () => { netState("Reconnecting…"); setTimeout(() => !p.destroyed && p.reconnect(), 1500); });
+      p.on("open", () => netState());
+      p.on("error", () => {});
+      netState();
+    }
+
+    function connectPlayer(code) {
+      return new Promise(async resolve => {
+        let done = false;
+        const finish = v => { if (!done) { done = true; resolve(v); } };
+        try { if (!peer || peer.destroyed) { peer = await newPeer(); role = "player"; peer.on("disconnected", () => !peer.destroyed && peer.reconnect()); } }
+        catch (e) { return finish(false); }
+        peer.on("error", e => { if (e.type === "peer-unavailable") finish(false); });
+        conn = peer.connect(PREFIX + code, { reliable: true });
+        hostCode = code;
+        conn.on("open", () => { netState(); if (myPres) conn.send({ t: "pres", p: myPres }); });
+        conn.on("data", m => {
+          if (!m || typeof m !== "object") return;
+          if (m.t === "game" && m.data) {
+            clockOffset = typeof m.now === "number" ? m.now - Date.now() : 0;
+            lastGame = m.data; gameSubs.forEach(cb => cb(lastGame)); finish(true);
+          }
+          if (m.t === "peers" && Array.isArray(m.list)) {
+            lastPeers = m.list.map(x => ({ peer: x.peer, presence: x.presence || {}, isMe: x.peer === peer.id, sameTab: true }));
+            playerPeerSubs.forEach(cb => cb(lastPeers));
+          }
+        });
+        const lost = () => {
+          if (role !== "player" || hostCode !== code) return;
+          netState("Reconnecting to the host…");
+          clearTimeout(retryT); retryT = setTimeout(() => connectPlayer(code), 3000);
+        };
+        conn.on("close", lost); conn.on("error", lost);
+        setTimeout(() => finish(false), 10000);
+      });
+    }
+
+    return {
+      label() {
+        if (!peer || peer.destroyed) return "No sign-in needed";
+        if (role === "host") return `Live · ${conns.size} phone${conns.size === 1 ? "" : "s"} connected`;
+        return conn && conn.open ? "Connected to the host" : "Connecting…";
+      },
+      async host(code, resume) {
+        if (role === "host" && hostCode === code) return;
+        this.leaveAll();
+        setupHost(await claimHost(code));
+        hostCode = code;
+        if (resume) hostGame = store.get("pb:hostgame:" + code);
+      },
+      watch(code, cb) {
+        if (role === "host") return () => {};
+        gameSubs.add(cb);
+        if (lastGame) setTimeout(() => cb(lastGame), 0);
+        return () => gameSubs.delete(cb);
+      },
+      async get(code) {
+        if (role === "host" && hostCode === code) return hostGame;
+        if (role === "player" && hostCode === code && lastGame) return lastGame;
+        this.leaveAll();
+        return (await connectPlayer(code)) ? lastGame : null;
+      },
+      async set(code, data) {
+        hostGame = data;
+        store.set("pb:hostgame:" + code, data);
+        conns.forEach(c => sendGame(c.conn));
+      },
+      async join(code) {
+        if (role === "host") return {
+          presence: () => Promise.resolve(),
+          onPeers(cb) { peerSubs.add(cb); setTimeout(() => cb(hostPeers()), 0); return () => peerSubs.delete(cb); },
+          leave: () => { peerNet.leaveAll(); return Promise.resolve(); },
+        };
+        return {
+          presence(p) { myPres = { ...(myPres || {}), ...p }; if (conn && conn.open) conn.send({ t: "pres", p: myPres }); return Promise.resolve(); },
+          onPeers(cb) { playerPeerSubs.add(cb); if (lastPeers.length) setTimeout(() => cb(lastPeers), 0); return () => playerPeerSubs.delete(cb); },
+          leave: () => { peerNet.leaveAll(); return Promise.resolve(); },
+        };
+      },
+      leaveAll() {
+        clearTimeout(retryT);
+        role = null; hostCode = null; conns.clear(); hostGame = null; lastGame = null; lastPeers = []; myPres = null;
+        gameSubs = new Set(); playerPeerSubs = new Set(); peerSubs = new Set();
+        if (peer && !peer.destroyed) peer.destroy();
+        peer = null; conn = null; netState();
+      },
+    };
+  })();
+
+  const localNet = {
+    watch: (code, cb) => local.watch(code, cb), get: code => local.get(code), set: (code, d) => local.set(code, d), join: code => local.join(code),
+  };
+  let net = localNet, netKind = "local";
+  let clockOffset = 0; // host clock minus this device's clock (peer mode)
+
+  const sync = {
+    watch: (code, cb) => net.watch(code, cb),
+    get: code => net.get(code),
+    set: (code, data) => net.set(code, data),
+    join: code => net.join(code),
+    // Claim a code for hosting; rejects "taken" if someone already has it.
+    async host(code, resume) {
+      if (net.host) return net.host(code, resume);
+      if (!resume && await net.get(code)) throw new Error("taken");
     },
   };
 
@@ -677,8 +823,12 @@
     $("hostErr").textContent = "";
     $("createBtn").disabled = true;
     try {
-      let code = newCode();
-      for (let i = 0; i < 4 && await sync.get(code); i++) code = newCode();
+      let code;
+      for (let i = 0; ; i++) {
+        code = newCode();
+        try { await sync.host(code); break; }
+        catch (e) { if (i >= 3 || (e.type && e.type !== "unavailable-id")) throw e; }
+      }
       const game = {
         code, round: 1, status: "lobby", mode: $("setMode").value, maxPlayers,
         pattern: $("setPattern").value, interval: +$("setInterval").value, challengeEvery: +$("setChallenge").value,
@@ -688,14 +838,19 @@
       store.set("pb:host", code);
       openHost(code, game);
     } catch (e) {
-      $("hostErr").textContent = "Couldn’t create the game. Only the page’s owner or an Editor can host.";
+      $("hostErr").textContent = netKind === "peer"
+        ? "Couldn’t reach the game server. Check your internet connection and try again."
+        : "Couldn’t create the game. Only the page’s owner or an Editor can host.";
     }
     $("createBtn").disabled = false;
   };
 
   $("resumeBtn").onclick = async () => {
     const code = store.get("pb:host");
-    const g = code && await sync.get(code).catch(() => null);
+    let g = null;
+    $("resumeBtn").disabled = true;
+    try { await sync.host(code, true); g = code && await sync.get(code); } catch (e) {}
+    $("resumeBtn").disabled = false;
     if (g) openHost(code, g); else { store.del("pb:host"); $("resumeBox").hidden = true; toast("That game isn’t around anymore. Create a new one."); }
   };
 
@@ -1066,7 +1221,7 @@
     const el = $(prefix + "Countdown"), ring = $(prefix + "Ring");
     let text, pct = 0, paused = true;
     if (g.status === "live" && g.nextAt) {
-      const left = Math.max(0, g.nextAt - Date.now());
+      const left = Math.max(0, g.nextAt - Date.now() - (prefix === "p" ? clockOffset : 0));
       text = left > 300 ? `Next ball in ${Math.ceil(left / 1000)}s` : "Here it comes…";
       pct = 100 - Math.min(100, left / (g.interval * 1000) * 100);
       paused = false;
@@ -1165,9 +1320,11 @@
   }
 
   // ================= boot =================
-  function renderChips() {
-    $("headerChips").innerHTML = `<span class="chip"><span class="dot${live ? " live" : ""}"></span>${live ? "Live on every phone" : "This device only"}</span>`;
+  function renderChips(msg) {
+    const text = msg || (netKind === "peer" ? peerNet.label() : live ? "Live on every phone" : "This device only");
+    $("headerChips").innerHTML = `<span class="chip"><span class="dot${live && !msg ? " live" : ""}"></span>${esc(text)}</span>`;
   }
+  function netState(msg) { renderChips(msg); }
   function goHome() {
     closeModal();
     show("viewHome");
@@ -1182,9 +1339,10 @@
     goHome();
     if (window.claude && typeof window.claude.use === "function") {
       [db, room, user] = await Promise.all(["db", "room", "user"].map(n => window.claude.use(n).catch(() => null)));
-      live = !!db;
+      if (db) { net = claudeNet; netKind = "claude"; }
       canHost = db && user ? await user.canEdit() : true;
-    }
+    } else if (window.Peer && window.RTCPeerConnection) { net = peerNet; netKind = "peer"; }
+    live = netKind !== "local";
     $("localBanner").hidden = live;
     renderChips();
     goHome();

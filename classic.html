@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Game Night Bingo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f6f4ef;
+    --panel: #ffffff;
+    --ink: #1f2330;
+    --muted: #6b7080;
+    --line: #e4e1d8;
+    --cell: #faf9f6;
+    --accent: #ff5a5f;
+    --accent-ink: #ffffff;
+    --mark: #ffd447;
+    --mark-ink: #1f2330;
+    --b: #3b82f6; --i: #ef4444; --n: #22c55e; --g: #f59e0b; --o: #a855f7;
+    --shadow: 0 1px 2px rgba(0,0,0,.05), 0 8px 24px rgba(0,0,0,.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161d;
+      --panel: #1d2029;
+      --ink: #f1f2f6;
+      --muted: #9aa0b2;
+      --line: #2e3240;
+      --cell: #242833;
+      --mark: #ffcf33;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.3);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.45 Inter, system-ui, sans-serif;
+  }
+  h1, h2, .ball, .card-head, .cell, .board-cell, .letter { font-family: Fredoka, Inter, sans-serif; }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 20px 16px 48px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+  header h1 { margin: 0; font-size: 30px; letter-spacing: .5px; }
+  header h1 span { color: var(--accent); }
+  .layout { display: grid; grid-template-columns: 380px minmax(0, 1fr); gap: 20px; align-items: start; }
+  @media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 18px; box-shadow: var(--shadow); }
+  .panel h2 { margin: 0 0 12px; font-size: 18px; }
+  .caller { position: sticky; top: 16px; }
+  @media (max-width: 900px) { .caller { position: static; } }
+
+  .current { display: flex; align-items: center; gap: 16px; margin-bottom: 14px; }
+  .ball {
+    width: 112px; height: 112px; border-radius: 50%; flex: none;
+    display: grid; place-items: center; text-align: center;
+    background: radial-gradient(circle at 35% 30%, #ffffffaa, transparent 45%), var(--c, #9aa0b2);
+    color: #fff; box-shadow: inset 0 -6px 12px rgba(0,0,0,.2), 0 6px 16px rgba(0,0,0,.18);
+  }
+  .ball .inner { background: #fff; color: #1f2330; width: 72px; height: 72px; border-radius: 50%; display: grid; place-content: center; line-height: 1; }
+  .ball .l { font-size: 16px; font-weight: 600; }
+  .ball .num { font-size: 32px; font-weight: 700; }
+  .ball.pop { animation: pop .45s ease; }
+  @keyframes pop { 0% { transform: scale(.5) rotate(-30deg); opacity: 0; } 70% { transform: scale(1.08); } 100% { transform: scale(1); opacity: 1; } }
+  .current-info { min-width: 0; }
+  .count { font-size: 13px; color: var(--muted); }
+  .count b { color: var(--ink); font-size: 20px; }
+  .recent { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .mini { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font: 600 12px Fredoka, sans-serif; color: #fff; background: var(--c); opacity: .9; }
+
+  .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  button {
+    font: 600 15px Inter, sans-serif; border: 1px solid var(--line); background: var(--cell); color: var(--ink);
+    border-radius: 12px; padding: 11px 14px; cursor: pointer; transition: transform .08s, background .15s;
+  }
+  button:hover { filter: brightness(.97); }
+  button:active { transform: scale(.97); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+  button.on { background: var(--n); color: #fff; border-color: transparent; }
+  button.wide { grid-column: 1 / -1; font-size: 17px; padding: 14px; }
+
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 14px; }
+  .row label { color: var(--muted); }
+  .row input[type=range] { flex: 1; max-width: 160px; accent-color: var(--accent); }
+  select { font: 500 14px Inter, sans-serif; padding: 7px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--cell); color: var(--ink); }
+  .switch { position: relative; width: 42px; height: 24px; flex: none; }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .switch span { position: absolute; inset: 0; background: var(--line); border-radius: 99px; cursor: pointer; transition: .2s; }
+  .switch span::after { content: ""; position: absolute; left: 3px; top: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: .2s; }
+  .switch input:checked + span { background: var(--accent); }
+  .switch input:checked + span::after { transform: translateX(18px); }
+
+  .progress { height: 4px; background: var(--line); border-radius: 4px; overflow: hidden; margin: -4px 0 12px; visibility: hidden; }
+  .progress.show { visibility: visible; }
+  .progress div { height: 100%; width: 0; background: var(--accent); }
+
+  .board { display: grid; grid-template-columns: 22px repeat(15, minmax(0, 1fr)); gap: 2px; margin-top: 14px; }
+  .letter { display: grid; place-items: center; font-weight: 700; color: #fff; border-radius: 6px; background: var(--c); font-size: 14px; }
+  .board-cell { aspect-ratio: 1; display: grid; place-items: center; font-size: clamp(8px, 2.4vw, 11px); font-weight: 600; border-radius: 4px; background: var(--cell); color: var(--muted); }
+  .board-cell.hit { background: var(--c); color: #fff; }
+
+  .cards-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .cards-top .ctrls { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .cards-top .ctrls button { padding: 8px 12px; font-size: 14px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 12px; box-shadow: var(--shadow); position: relative; transition: box-shadow .2s; }
+  .card.winner { box-shadow: 0 0 0 3px var(--n), var(--shadow); }
+  .card-id { font-size: 12px; color: var(--muted); margin: 0 0 6px 2px; display: flex; justify-content: space-between; }
+  .card-id .tag { color: var(--n); font-weight: 600; }
+  .card-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; }
+  .card-head { text-align: center; color: #fff; font-weight: 700; font-size: 20px; border-radius: 8px; padding: 2px 0; background: var(--c); }
+  .cell {
+    aspect-ratio: 1; border-radius: 10px; display: grid; place-items: center; font-size: 20px; font-weight: 600;
+    background: var(--cell); border: 1px solid var(--line); cursor: pointer; user-select: none; position: relative; transition: background .15s, transform .08s;
+  }
+  .cell:active { transform: scale(.94); }
+  .cell.marked { background: var(--mark); color: var(--mark-ink); border-color: transparent; }
+  .cell.marked::after { content: ""; position: absolute; inset: 18%; border-radius: 50%; border: 3px solid rgba(0,0,0,.18); }
+  .cell.free { font-size: 12px; letter-spacing: .5px; }
+  .cell.called:not(.marked) { box-shadow: inset 0 0 0 2px var(--accent); }
+  .cell.win { background: var(--n); color: #fff; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(140%); transition: transform .35s cubic-bezier(.2,1.4,.4,1);
+    background: var(--ink); color: var(--bg); padding: 14px 22px; border-radius: 14px; font: 600 18px Fredoka, sans-serif; box-shadow: var(--shadow); z-index: 10; max-width: calc(100% - 32px); text-align: center;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .hint { font-size: 13px; color: var(--muted); margin: 10px 0 0; }
+
+  @media print {
+    body { background: #fff; color: #000; }
+    header, .caller, .cards-top, .toast, .card-id .tag { display: none !important; }
+    .layout { display: block; }
+    .cards { grid-template-columns: repeat(2, 1fr); }
+    .card { break-inside: avoid; box-shadow: none; border: 1px solid #999; }
+    .cell { background: #fff !important; color: #000 !important; border: 1px solid #999; box-shadow: none !important; }
+    .cell.marked::after { display: none; }
+    .card-head { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Game Night <span>Bingo</span></h1>
+    <button id="newGame">New game</button>
+  </header>
+
+  <div class="layout">
+    <section class="panel caller">
+      <div class="current">
+        <div class="ball" id="ball"><div class="inner"><span class="l" id="ballL">–</span><span class="num" id="ballN">?</span></div></div>
+        <div class="current-info">
+          <div class="count"><b id="called">0</b> / 75 called</div>
+          <div class="recent" id="recent"></div>
+        </div>
+      </div>
+
+      <div class="btns">
+        <button class="primary wide" id="draw">Draw ball</button>
+        <button id="auto">▶ Auto</button>
+        <button id="undo">Undo</button>
+      </div>
+      <div class="progress" id="progress"><div></div></div>
+
+      <div class="row">
+        <label for="speed">Auto every <b id="speedVal">5</b>s</label>
+        <input type="range" id="speed" min="2" max="20" value="5">
+      </div>
+      <div class="row">
+        <label for="stopAt">Auto stop after</label>
+        <select id="stopAt">
+          <option value="0">Never (until win)</option>
+          <option value="10">10 picks</option>
+          <option value="20">20 picks</option>
+          <option value="30">30 picks</option>
+          <option value="40">40 picks</option>
+          <option value="50">50 picks</option>
+        </select>
+      </div>
+      <div class="row">
+        <label for="voice">Call numbers out loud</label>
+        <label class="switch"><input type="checkbox" id="voice"><span></span></label>
+      </div>
+
+      <div class="board" id="board"></div>
+    </section>
+
+    <section>
+      <div class="cards-top">
+        <h2 style="margin:0">Your cards</h2>
+        <div class="ctrls">
+          <select id="numCards" aria-label="Number of cards">
+            <option value="1">1 card</option>
+            <option value="2" selected>2 cards</option>
+            <option value="3">3 cards</option>
+            <option value="4">4 cards</option>
+            <option value="6">6 cards</option>
+          </select>
+          <select id="pattern" aria-label="Winning pattern">
+            <option value="line">Any line</option>
+            <option value="corners">Four corners</option>
+            <option value="x">Big X</option>
+            <option value="frame">Picture frame</option>
+            <option value="blackout">Blackout</option>
+          </select>
+          <button id="newCards">🎲 New cards</button>
+          <button id="print">🖨 Print</button>
+        </div>
+      </div>
+      <div class="row" style="border:0;padding-top:0;margin-bottom:6px">
+        <label for="autoMark">Auto-mark called numbers on my cards</label>
+        <label class="switch"><input type="checkbox" id="autoMark" checked><span></span></label>
+      </div>
+      <div class="cards" id="cards"></div>
+      <p class="hint">Tap a square to mark or unmark it. Called numbers you haven't marked get a red ring.</p>
+    </section>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+  const LETTERS = ["B", "I", "N", "G", "O"];
+  const COLORS = ["var(--b)", "var(--i)", "var(--n)", "var(--g)", "var(--o)"];
+  const $ = id => document.getElementById(id);
+  const colOf = n => Math.floor((n - 1) / 15);
+
+  let pool = [], called = [], cards = [], timer = null, tick = null, autoStart = 0, wonCards = new Set();
+
+  const shuffle = a => {
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  };
+
+  function makeCard() {
+    // cells[col][row]; column c holds 5 numbers from c*15+1 .. c*15+15
+    const cells = LETTERS.map((_, c) =>
+      shuffle(Array.from({ length: 15 }, (_, k) => c * 15 + k + 1)).slice(0, 5)
+    );
+    cells[2][2] = 0; // free space
+    const marked = cells.map(col => col.map(n => n === 0));
+    return { id: String(Math.floor(1000 + Math.random() * 9000)), cells, marked };
+  }
+
+  // ---------- caller ----------
+  function buildBoard() {
+    const b = $("board");
+    b.innerHTML = "";
+    LETTERS.forEach((L, c) => {
+      const l = document.createElement("div");
+      l.className = "letter"; l.textContent = L; l.style.setProperty("--c", COLORS[c]);
+      b.appendChild(l);
+      for (let k = 1; k <= 15; k++) {
+        const n = c * 15 + k, d = document.createElement("div");
+        d.className = "board-cell"; d.id = "bc" + n; d.textContent = n; d.style.setProperty("--c", COLORS[c]);
+        b.appendChild(d);
+      }
+    });
+  }
+
+  function renderCaller(animate) {
+    const last = called[called.length - 1];
+    const ball = $("ball");
+    if (last) {
+      ball.style.setProperty("--c", COLORS[colOf(last)]);
+      $("ballL").textContent = LETTERS[colOf(last)];
+      $("ballN").textContent = last;
+    } else {
+      ball.style.removeProperty("--c");
+      $("ballL").textContent = "–"; $("ballN").textContent = "?";
+    }
+    if (animate) { ball.classList.remove("pop"); void ball.offsetWidth; ball.classList.add("pop"); }
+    $("called").textContent = called.length;
+    $("recent").innerHTML = called.slice(-6, -1).reverse()
+      .map(n => `<div class="mini" style="--c:${COLORS[colOf(n)]}">${LETTERS[colOf(n)]}${n}</div>`).join("");
+    document.querySelectorAll(".board-cell").forEach(el => el.classList.remove("hit"));
+    called.forEach(n => $("bc" + n).classList.add("hit"));
+    $("draw").disabled = pool.length === 0;
+    $("undo").disabled = called.length === 0;
+  }
+
+  function speak(n) {
+    if (!$("voice").checked || !("speechSynthesis" in window)) return;
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(`${LETTERS[colOf(n)]}, ${n}`);
+    u.rate = 0.9;
+    speechSynthesis.speak(u);
+  }
+
+  function draw() {
+    if (!pool.length) { stopAuto(); toast("All 75 balls called!"); return; }
+    const n = pool.pop();
+    called.push(n);
+    speak(n);
+    if ($("autoMark").checked) markEverywhere(n);
+    renderCaller(true);
+    renderCards();
+    checkWins();
+    const limit = +$("stopAt").value;
+    if (timer && limit && called.length >= limit) { stopAuto(); toast(`Auto paused after ${limit} picks`); }
+  }
+
+  function undo() {
+    const n = called.pop();
+    if (!n) return;
+    pool.push(n);
+    cards.forEach(card => card.cells.forEach((col, c) => col.forEach((v, r) => { if (v === n) card.marked[c][r] = false; })));
+    wonCards.clear();
+    renderCaller(false); renderCards(); checkWins(true);
+  }
+
+  function startAuto(immediate = true) {
+    if (!pool.length) return;
+    $("auto").textContent = "⏸ Pause"; $("auto").classList.add("on");
+    $("progress").classList.add("show");
+    const ms = +$("speed").value * 1000;
+    if (immediate) draw();
+    autoStart = Date.now();
+    timer = setInterval(() => { draw(); autoStart = Date.now(); }, ms);
+    tick = setInterval(() => {
+      $("progress").firstElementChild.style.width = Math.min(100, (Date.now() - autoStart) / ms * 100) + "%";
+    }, 50);
+  }
+
+  function stopAuto() {
+    clearInterval(timer); clearInterval(tick); timer = tick = null;
+    $("auto").textContent = "▶ Auto"; $("auto").classList.remove("on");
+    $("progress").classList.remove("show");
+    $("progress").firstElementChild.style.width = "0";
+  }
+
+  // ---------- cards ----------
+  function markEverywhere(n) {
+    cards.forEach(card => card.cells.forEach((col, c) => col.forEach((v, r) => { if (v === n) card.marked[c][r] = true; })));
+  }
+
+  const PATTERNS = {
+    line: () => {
+      const lines = [];
+      for (let i = 0; i < 5; i++) {
+        lines.push([0,1,2,3,4].map(r => [i, r]));   // column
+        lines.push([0,1,2,3,4].map(c => [c, i]));   // row
+      }
+      lines.push([0,1,2,3,4].map(i => [i, i]));
+      lines.push([0,1,2,3,4].map(i => [i, 4 - i]));
+      return lines;
+    },
+    corners: () => [[[0,0],[4,0],[0,4],[4,4]]],
+    x: () => [[0,1,2,3,4].flatMap(i => i === 2 ? [[2,2]] : [[i,i],[i,4-i]])],
+    frame: () => {
+      const s = [];
+      for (let c = 0; c < 5; c++) for (let r = 0; r < 5; r++) if (c % 4 === 0 || r % 4 === 0) s.push([c, r]);
+      return [s];
+    },
+    blackout: () => {
+      const s = [];
+      for (let c = 0; c < 5; c++) for (let r = 0; r < 5; r++) s.push([c, r]);
+      return [s];
+    },
+  };
+
+  // Winning cells for a card, or null. Only counts squares whose number has actually been called.
+  function winCells(card) {
+    const ok = (c, r) => card.marked[c][r] && (card.cells[c][r] === 0 || called.includes(card.cells[c][r]));
+    for (const shape of PATTERNS[$("pattern").value]()) {
+      if (shape.every(([c, r]) => ok(c, r))) return shape;
+    }
+    return null;
+  }
+
+  function renderCards() {
+    const wrap = $("cards");
+    wrap.innerHTML = "";
+    cards.forEach((card, idx) => {
+      const win = winCells(card);
+      const winSet = new Set((win || []).map(([c, r]) => c + "," + r));
+      const el = document.createElement("div");
+      el.className = "card" + (win ? " winner" : "");
+      let html = `<div class="card-id"><span>Card #${card.id}</span>${win ? '<span class="tag">BINGO!</span>' : ""}</div><div class="card-grid">`;
+      LETTERS.forEach((L, c) => html += `<div class="card-head" style="--c:${COLORS[c]}">${L}</div>`);
+      for (let r = 0; r < 5; r++) for (let c = 0; c < 5; c++) {
+        const n = card.cells[c][r];
+        const cls = ["cell"];
+        if (n === 0) cls.push("free");
+        if (card.marked[c][r]) cls.push("marked");
+        if (n && called.includes(n)) cls.push("called");
+        if (winSet.has(c + "," + r)) cls.push("win");
+        html += `<div class="${cls.join(" ")}" data-card="${idx}" data-c="${c}" data-r="${r}">${n || "FREE"}</div>`;
+      }
+      el.innerHTML = html + "</div>";
+      wrap.appendChild(el);
+    });
+  }
+
+  function checkWins(silent) {
+    const winners = [];
+    cards.forEach(card => {
+      if (winCells(card) && !wonCards.has(card.id)) { wonCards.add(card.id); winners.push(card.id); }
+    });
+    if (winners.length && !silent) {
+      stopAuto();
+      toast(`🎉 BINGO on card #${winners.join(", #")}!`);
+      if ($("voice").checked && "speechSynthesis" in window) speechSynthesis.speak(new SpeechSynthesisUtterance("Bingo!"));
+    }
+  }
+
+  $("cards").addEventListener("click", e => {
+    const cell = e.target.closest(".cell");
+    if (!cell || cell.classList.contains("free")) return;
+    const card = cards[+cell.dataset.card], c = +cell.dataset.c, r = +cell.dataset.r;
+    card.marked[c][r] = !card.marked[c][r];
+    if (!winCells(card)) wonCards.delete(card.id);
+    renderCards();
+    checkWins();
+  });
+
+  // ---------- misc ----------
+  let toastT;
+  function toast(msg) {
+    const t = $("toast");
+    t.textContent = msg; t.classList.add("show");
+    clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("show"), 3500);
+  }
+
+  function newCards() {
+    cards = Array.from({ length: +$("numCards").value }, makeCard);
+    if ($("autoMark").checked) called.forEach(markEverywhere);
+    wonCards.clear();
+    renderCards(); checkWins(true);
+  }
+
+  function newGame() {
+    stopAuto();
+    pool = shuffle(Array.from({ length: 75 }, (_, i) => i + 1));
+    called = [];
+    cards.forEach(card => { card.marked = card.cells.map(col => col.map(n => n === 0)); });
+    wonCards.clear();
+    renderCaller(false); renderCards();
+  }
+
+  $("draw").onclick = () => { if (timer) { stopAuto(); } draw(); };
+  $("auto").onclick = () => timer ? stopAuto() : startAuto();
+  $("undo").onclick = () => { stopAuto(); undo(); };
+  $("newGame").onclick = () => { if (!called.length || confirm("Start a new game? Called numbers will be cleared.")) newGame(); };
+  $("newCards").onclick = newCards;
+  $("numCards").onchange = newCards;
+  $("pattern").onchange = () => { wonCards.clear(); renderCards(); checkWins(); };
+  $("autoMark").onchange = () => { if ($("autoMark").checked) { called.forEach(markEverywhere); renderCards(); checkWins(); } };
+  $("print").onclick = () => window.print();
+  $("speed").oninput = () => {
+    $("speedVal").textContent = $("speed").value;
+    if (timer) { stopAuto(); startAuto(false); }
+  };
+  document.addEventListener("keydown", e => {
+    if (e.code === "Space" && !["SELECT", "INPUT", "BUTTON"].includes(document.activeElement.tagName)) { e.preventDefault(); $("draw").click(); }
+  });
+
+  buildBoard();
+  newGame();
+  newCards();
+})();
+</script>
+</body>
+</html>
