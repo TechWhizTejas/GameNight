@@ -203,7 +203,7 @@
 
   .toast {
     position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%) translateY(160%); transition: transform .35s cubic-bezier(.2, 1.4, .4, 1);
-    background: var(--ink); color: var(--bg); padding: 12px 20px; border-radius: 14px; font: 800 16px var(--body); z-index: 30; max-width: calc(100% - 32px); text-align: center;
+    background: var(--ink); color: var(--bg); padding: 12px 20px; border-radius: 14px; font: 800 16px var(--body); z-index: 30; max-width: calc(100% - 32px); text-align: center; pointer-events: none;
   }
   .toast.show { transform: translateX(-50%) translateY(0); }
   #confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 40; }
@@ -530,7 +530,7 @@
   const MODE_NAMES = { easy: "Easy", hard: "Hard", party: "Party pictures" };
   const MODE_NOTES = {
     easy: "Numbers 1–25 anywhere on the card. Every line crosses off a letter of PARVA. Prizes for 1 line, 2 lines and all 5.",
-    hard: "Numbers 1–75, no auto-mark, no list of past balls. Fill the whole card from memory. The host’s screen checks it.",
+    hard: "Numbers 1–75, no auto-mark, no list of past balls. Fill the whole card from memory. Cards are checked automatically, and a false claim resets your card.",
     party: "Picture balls in P-A-R-V-A columns. You pick the winning pattern.",
   };
   const modeOf = g => MODES[g.mode] ? g.mode : "party";
@@ -887,7 +887,7 @@
       const game = {
         code, round: 1, status: "lobby", mode: $("setMode").value, maxPlayers,
         pattern: $("setPattern").value, interval: +$("setInterval").value, challengeEvery: +$("setChallenge").value,
-        called: [], nextAt: null, winners: [], challenge: null, resumeAfter: false, createdAt: Date.now(), updatedAt: Date.now(),
+        called: [], nextAt: null, winners: [], falseClaims: [], challenge: null, resumeAfter: false, createdAt: Date.now(), updatedAt: Date.now(),
       };
       await sync.set(code, game);
       store.set("pb:host", code);
@@ -980,7 +980,7 @@
   };
   function newRound() {
     closeModal();
-    patch({ round: H.game.round + 1, status: "lobby", called: [], nextAt: null, winners: [], challenge: null, resumeAfter: false });
+    patch({ round: H.game.round + 1, status: "lobby", called: [], nextAt: null, winners: [], falseClaims: [], challenge: null, resumeAfter: false });
     H.claimsSeen = new Map();
     toast("New round! Everyone gets a fresh card.");
   }
@@ -1043,35 +1043,45 @@
         <div class="nm">${esc(p.presence.name)}${i >= g.maxPlayers ? " · over the limit" : ""}</div><div class="prog">${prog}</div></div>`;
     }).join("") : `<div class="empty">No one yet. Share the code <b>${esc(g.code)}</b>.</div>`;
 
-    // PARVA claims
+    // PARVA claims are checked automatically against the drawn balls: a good card wins straight away,
+    // a false claim is announced and that player's card gets reset.
     const stage = stageOf(g);
-    const claims = !stage ? [] : list.slice(0, g.maxPlayers).filter(p => p.presence.claim && p.presence.round === g.round
-      && p.presence.claimStage === g.winners.length && H.claimsSeen.get(p.peer) !== p.presence.claim);
-    const box = $("hClaims");
-    if (!claims.length) { box.hidden = true; box.innerHTML = ""; return; }
-    box.hidden = false;
-    box.innerHTML = `<h2>📣 Claim for ${esc(stage.label)}!</h2>` + claims.map(p => {
-      const v = verifyPlayer(p.presence, g);
-      const why = !v ? "Couldn’t read their card" : v.wrong ? `${v.wrong} marked square${v.wrong === 1 ? " wasn’t" : "s weren’t"} called` : `Not there yet (${v.prog})`;
-      return `<div class="claim"><div class="who">${esc(p.presence.name)}</div>
-        <div class="verdict ${v && v.win ? "ok" : "no"}">${v && v.win ? "✅ Their card checks out against the drawn balls" : "❌ " + why}</div>
-        <div class="acts"><button class="primary small" data-confirm="${esc(p.peer)}">Confirm winner</button><button class="small" data-dismiss="${esc(p.peer)}">Not a win</button></div></div>`;
-    }).join("");
-    if (g.status === "live" && claims.some(p => (verifyPlayer(p.presence, g) || {}).win)) pauseAuto();
+    const claims = !stage ? [] : list.slice(0, g.maxPlayers)
+      .filter(p => p.presence.claim && p.presence.round === g.round && p.presence.claimStage === g.winners.length && H.claimsSeen.get(p.peer) !== p.presence.claim)
+      .sort((a, b) => a.presence.claim - b.presence.claim);
+    if (claims.length) {
+      let winner = null;
+      const falses = [];
+      for (const p of claims) {
+        H.claimsSeen.set(p.peer, p.presence.claim);
+        const v = verifyPlayer(p.presence, g);
+        if (v && v.win) { winner = winner || p; continue; } // a correct but slower claim just misses this prize
+        const reason = !v ? "Their card couldn’t be read"
+          : v.wrong ? `${v.wrong} marked square${v.wrong === 1 ? " wasn’t" : "s weren’t"} drawn`
+          : `Not there yet (${v.prog})`;
+        falses.push({ peer: p.peer, name: p.presence.name.slice(0, 20), reason, at: Date.now() });
+      }
+      const next = {};
+      if (falses.length) next.falseClaims = [...(g.falseClaims || []), ...falses].slice(-10);
+      if (winner) Object.assign(next, { status: "paused", nextAt: null, challenge: null,
+        winners: [...g.winners, { name: winner.presence.name.slice(0, 20), peer: winner.peer, stage: stage.label, prize: pickFrom(PRIZES), at: Date.now() }] });
+      falses.forEach(f => toast(`😬 ${f.name} called PARVA too early. Card reset!`));
+      patch(next);
+      return;
+    }
+    renderChecks(g);
   }
-  $("hClaims").addEventListener("click", e => {
-    const b = e.target.closest("button");
-    if (!b) return;
-    const peer = b.dataset.confirm || b.dataset.dismiss;
-    const p = H.peers.find(x => x.peer === peer);
-    if (!p) return;
-    H.claimsSeen.set(peer, p.presence.claim);
-    if (b.dataset.confirm) {
-      const st = stageOf(H.game);
-      if (!st) return;
-      patch({ status: "paused", nextAt: null, challenge: null, winners: [...H.game.winners, { name: p.presence.name.slice(0, 20), peer, stage: st.label, prize: pickFrom(PRIZES), at: Date.now() }] });
-    } else renderPlayers();
-  });
+
+  // A short log of the automatic checks for the host.
+  function renderChecks(g) {
+    const items = [
+      ...g.winners.map(w => ({ at: w.at, html: `<div class="verdict ok">✅ ${esc(w.name)} won ${esc(w.stage || "")}</div>` })),
+      ...(g.falseClaims || []).map(f => ({ at: f.at, html: `<div class="verdict no">❌ ${esc(f.name)}: ${esc(f.reason)}. Card reset.</div>` })),
+    ].sort((a, b) => b.at - a.at).slice(0, 6);
+    const box = $("hClaims");
+    box.hidden = !items.length;
+    box.innerHTML = items.length ? `<h2>Card checks</h2><p class="sub">PARVA calls are checked automatically against the drawn balls.</p><div class="claim">${items.map(i => i.html).join("")}</div>` : "";
+  }
 
   // Host popups mirror the shared state: a challenge, or the newest winner.
   let hostSeenWinner = 0;
@@ -1121,6 +1131,7 @@
   });
 
   async function openPlayer(code, name, game) {
+    P.seenFalse = Math.max(0, ...(game.falseClaims || []).map(f => f.at));
     Object.assign(P, { code, name, game, lastCalledLen: game.called.length, seenChallenge: game.challenge ? game.challenge.id : null, seenWinner: game.winners.length ? game.winners.at(-1).at : 0 });
     P.joinedAt = (store.get("pb:joined:" + code) || Date.now());
     store.set("pb:joined:" + code, P.joinedAt);
@@ -1149,7 +1160,6 @@
     const saved = store.get(P.cardKey);
     if (saved && saved.mode === modeOf(g) && Array.isArray(saved.cells)) { P.cells = saved.cells; P.marked = saved.marked | 0; }
     else { P.cells = makeCard(modeOf(g)); P.marked = P.cells[2][2] === 0 ? 1 << 12 : 0; saveCard(); }
-    P.autoClaimed = null;
   }
   const saveCard = () => store.set(P.cardKey, { mode: modeOf(P.game), cells: P.cells, marked: P.marked });
   const isMarked = (c, r) => !!(P.marked & (1 << (c * 5 + r)));
@@ -1160,7 +1170,8 @@
     const idx = list.findIndex(p => p.isMe);
     const full = idx >= 0 && idx >= P.game.maxPlayers;
     $("pFull").hidden = !full;
-    $("pCardWrap").hidden = $("pParva").hidden = full;
+    $("pCardWrap").hidden = full;
+    $("pParva").hidden = full || !P.showParva;
   }
 
   function renderPlayer() {
@@ -1176,8 +1187,10 @@
     $("pAutoRow").hidden = hard;
     // A new prize stage means any earlier claim is finished.
     if (P.claim && P.claimStage !== g.winners.length) P.claim = null;
+    handleFalseClaims(g);
 
-    const stage = stageOf(g), check = cardCheck(P.cells, isMarked, called, g);
+    // Judge the card by the player's own marks only, so it never hints which balls were drawn.
+    const stage = stageOf(g), check = cardCheck(P.cells, isMarked, { has: () => true }, g);
     const winSet = new Set(hard ? [] : check.shape.map(([c, r]) => c + "," + r));
     const toFill = ALL.flatMap(c => ALL.map(r => [c, r])).filter(([c, r]) => P.cells[c][r] !== 0);
     const markedCount = toFill.filter(([c, r]) => isMarked(c, r)).length;
@@ -1198,22 +1211,14 @@
     }
     $("pCardWrap").innerHTML = html + "</div></div>";
 
-    // Hard: a full card is sent to the host for checking straight away (once per set of marks).
-    const full = markedCount === toFill.length;
-    if (hard && stage && full && P.autoClaimed !== P.marked && !P.claim) {
-      P.autoClaimed = P.marked; P.claim = Date.now(); P.claimStage = g.winners.length;
-      toast("Card full! Sent to the host to check.");
-    }
+    // The PARVA button only shows up once the player's marks qualify for the next prize.
     const btn = $("pParva");
-    // A claim the host hasn't answered within 20s can be sent again.
-    const claimed = !!P.claim && Date.now() - P.claim < 20000;
-    const ready = !!stage && (hard ? full : check.win);
-    btn.disabled = !ready || claimed;
-    btn.className = "parva-btn" + (claimed ? " sent" : ready ? " ready" : "");
-    btn.textContent = !stage ? "All prizes won! 🎉"
-      : claimed ? "Sent! The host is checking…"
-      : ready ? (hard ? "Check my card! 🎉" : `Claim ${stage.label}! 🎉`)
-      : hard ? "Fill every square" : "PARVA!";
+    const claimed = !!P.claim && Date.now() - P.claim < 20000; // no answer in 20s (host away): allow another try
+    const ready = !!stage && check.win;
+    P.showParva = ready || claimed;
+    btn.disabled = claimed;
+    btn.className = "parva-btn" + (claimed ? " sent" : " ready");
+    btn.textContent = claimed ? "Checking your card…" : `PARVA! ${stage ? stage.label : ""} 🎉`;
     pushPresence();
     renderFull();
     playerModal(g);
@@ -1251,6 +1256,24 @@
   $("pLeave").onclick = leavePlayer;
   $("pFullBack").onclick = leavePlayer;
 
+  // A false claim reported by the host: reset this player's card, or tell everyone else.
+  function handleFalseClaims(g) {
+    const fresh = (g.falseClaims || []).filter(f => f.at > (P.seenFalse || 0));
+    if (!fresh.length) return;
+    P.seenFalse = Math.max(...fresh.map(f => f.at));
+    const mine = P.peers.find(p => p.isMe && p.sameTab !== false);
+    fresh.forEach(f => {
+      if (mine && f.peer === mine.peer) {
+        P.marked = P.cells[2][2] === 0 ? 1 << 12 : 0; P.claim = null; saveCard();
+        openModal({
+          kicker: "False claim", title: "❌ Not quite!", who: f.reason + ".", noSpin: true,
+          text: "Your card has been reset. Keep listening and mark again!", key: "f" + f.at,
+          actions: [["OK", "primary", closeModal]],
+        });
+      } else toast(`😬 ${f.name} called PARVA too early. Card reset!`);
+    });
+  }
+
   function playerModal(g) {
     const w = g.winners.at(-1);
     if (g.challenge && g.challenge.id !== P.seenChallenge) {
@@ -1259,6 +1282,7 @@
         actions: [["Got it!", "primary", () => { P.seenChallenge = g.challenge.id; closeModal(); }]],
       });
     } else if (!g.challenge && modalKey && modalKey[0] === "c") closeModal();
+    if (modalKey && modalKey[0] === "f") return; // let the player read their false-claim notice
     if (w && w.at > P.seenWinner) {
       P.seenWinner = w.at;
       const mine = P.peers.find(p => p.isMe && p.sameTab !== false);
@@ -1326,8 +1350,8 @@
 
   // ================= modal =================
   let modalKey = null;
-  function openModal({ kicker, title, big, who, text, key, actions }) {
-    const same = modalKey === key;
+  function openModal({ kicker, title, big, who, text, key, actions, noSpin }) {
+    const same = modalKey === key || !!noSpin;
     modalKey = key;
     $("mKicker").textContent = kicker;
     $("mTitle").textContent = title;
